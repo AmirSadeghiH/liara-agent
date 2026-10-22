@@ -1,32 +1,75 @@
 {% extends "base.html" %}
 {% from "_macros.html" import status_badge, time_tag, empty_state, approval_status %}
+{% from "_icons.html" import icon %}
 {% block title %}نمای کلی — {{ app_name }}{% endblock %}
 {% block page_title %}نمای کلی{% endblock %}
 {% block page_sub %}
   وضعیت اتصال، گردش‌کارهای در جریان و تأییدهای منتظر تصمیم.
 {% endblock %}
 {% block actions %}
-  <a class="btn primary" href="/diagnose">شروع عیب‌یابی</a>
+  <a class="btn primary" href="/diagnose">{{ icon('diagnose', 16) }} شروع عیب‌یابی</a>
 {% endblock %}
 
 {% block content %}
 <div class="stack">
 
-  {% if demo_mode %}
-  <div class="card" style="border-color:#bfe3dd;background:linear-gradient(180deg,#f2fbf9,#ffffff)">
-    <div class="card-body">
-      <div class="spread" style="align-items:flex-start">
-        <div>
-          <h2 style="margin-bottom:4px">اجرای سناریوی دمو</h2>
-          <p class="muted small" style="margin:0">
-            یک حادثه واقعی (خطای 500) را از ابتدا اجرا می‌کند: جمع‌آوری شواهد ← تحلیل ← تأیید ← اصلاح ← تست ←
-            انتظار تأیید انتشار ← انتشار شبیه‌سازی‌شده ← بررسی سلامت.
-          </p>
+  <section class="hero">
+    <div class="hero-grid">
+      <div>
+        <span class="hero-eyebrow"><span class="dot teal"></span> AI Infrastructure Engineer</span>
+        <h2>از لاگ تا انتشار، با شواهد و تأیید تو.</h2>
+        <p>
+          LiaraPilot شواهد پروژه را از لیارا می‌خواند، علت را با ارجاع به لاگ و متریک توضیح می‌دهد،
+          در Workspace ایزوله اصلاح می‌کند، تست می‌گیرد و فقط بعد از تأیید صریح تو انتشار می‌دهد.
+        </p>
+        <div class="flow" aria-label="جریان کار">
+          <span class="flow-step"><b>۰۱</b> شواهد</span>
+          <span class="flow-step"><b>۰۲</b> تشخیص</span>
+          <span class="flow-step"><b>۰۳</b> تأیید</span>
+          <span class="flow-step"><b>۰۴</b> اصلاح</span>
+          <span class="flow-step"><b>۰۵</b> تست</span>
+          <span class="flow-step"><b>۰۶</b> انتشار و سلامت</span>
         </div>
-        <span class="badge demo"><span class="dot amber"></span> بدون توکن و بدون LLM</span>
+        <div class="hero-actions">
+          <a class="btn primary" href="/diagnose">{{ icon('play', 15) }} شروع یک عیب‌یابی</a>
+          <a class="btn ghost" href="/workflows">مشاهده گردش‌کارها {{ icon('arrow-left', 15) }}</a>
+        </div>
       </div>
-      <div class="grid cols-3" style="margin-top:14px;align-items:end">
-        <div class="field" style="grid-column: span 2">
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <span>حالت اجرا</span>
+          <strong>{% if simulated %}<span class="badge demo"><span class="dot amber"></span> DEMO</span>{% else %}<span class="badge live"><span class="dot"></span> LIVE</span>{% endif %}</strong>
+        </div>
+        <div class="hero-stat">
+          <span>گردش‌کارها</span>
+          <strong>{{ stats.workflows_total }}</strong>
+        </div>
+        <div class="hero-stat">
+          <span>تأیید منتظر</span>
+          <strong>{{ stats.pending_approvals }}</strong>
+        </div>
+        <div class="hero-stat">
+          <span>آداپتور لیارا</span>
+          <strong class="ltr">{{ adapter.mode }}</strong>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {% if demo_mode %}
+  <div class="card demo-panel">
+    <div class="card-head">
+      <div class="panel-title">{{ icon('spark', 18) }} اجرای سناریوی دمو</div>
+      <span class="scenario-badge">{{ icon('zap', 12) }} بدون توکن · بدون LLM</span>
+    </div>
+    <div class="card-body">
+      <p class="muted small" style="margin:0">
+        یک حادثه کامل را از ابتدا اجرا می‌کند: جمع‌آوری شواهد ← تحلیل ← تأیید ← اصلاح ← تست ←
+        انتظار تأیید انتشار ← انتشار شبیه‌سازی‌شده ← بررسی سلامت.
+        همه داده‌ها با برچسب <span class="badge demo"><span class="dot amber"></span> DEMO / SIMULATED</span> مشخص می‌شوند.
+      </p>
+      <div class="demo-form">
+        <div class="field">
           <label for="demo-scenario">سناریو</label>
           <select id="demo-scenario">
             {% for s in scenarios %}
@@ -37,34 +80,46 @@
           </select>
           <span class="help">سناریوی «خطای 500 جنگو» برای نمایش پنج‌دقیقه‌ای پیشنهاد می‌شود.</span>
         </div>
-        <div>
-          <button class="btn primary block" id="btn-run-demo" type="button">اجرای سناریوی دمو</button>
-        </div>
+        <button class="btn primary block" id="btn-run-demo" type="button">
+          {{ icon('play', 16) }} اجرای سناریوی دمو
+        </button>
       </div>
-      <div id="demo-message" class="small" style="margin-top:8px"></div>
+      <div id="demo-message" class="small"></div>
     </div>
   </div>
   {% endif %}
 
   <div class="grid cols-4">
     <div class="card stat">
-      <div class="label">پروژه‌های قابل‌مشاهده</div>
+      <div class="stat-top">
+        <div class="label">پروژه‌های قابل‌مشاهده</div>
+        <span class="stat-icon">{{ icon('projects', 17) }}</span>
+      </div>
       <div class="value">{{ projects|length }}</div>
       <div class="hint">{{ "شبیه‌سازی‌شده" if simulated else "از API لیارا" }}</div>
     </div>
     <div class="card stat">
-      <div class="label">گردش‌کارهای در جریان</div>
+      <div class="stat-top">
+        <div class="label">گردش‌کارهای در جریان</div>
+        <span class="stat-icon">{{ icon('workflows', 17) }}</span>
+      </div>
       <div class="value">{{ stats.workflows_by_status.get('running', 0) + stats.workflows_by_status.get('waiting_for_approval', 0) + stats.workflows_by_status.get('testing', 0) + stats.workflows_by_status.get('deploying', 0) + stats.workflows_by_status.get('verifying', 0) }}</div>
       <div class="hint">مجموع کل: {{ stats.workflows_total }}</div>
     </div>
     <div class="card stat">
-      <div class="label">تأییدهای منتظر تصمیم</div>
-      <div class="value" style="color:{{ '#b45309' if stats.pending_approvals else 'inherit' }}">{{ stats.pending_approvals }}</div>
+      <div class="stat-top">
+        <div class="label">تأییدهای منتظر تصمیم</div>
+        <span class="stat-icon">{{ icon('approvals', 17) }}</span>
+      </div>
+      <div class="value" style="{{ 'color:#8a5a00' if stats.pending_approvals else '' }}">{{ stats.pending_approvals }}</div>
       <div class="hint"><a href="/approvals">مشاهده تأییدها</a></div>
     </div>
     <div class="card stat">
-      <div class="label">وضعیت اتصال</div>
-      <div class="value" style="font-size:16px;margin-top:6px">
+      <div class="stat-top">
+        <div class="label">وضعیت اتصال</div>
+        <span class="stat-icon">{{ icon('shield', 17) }}</span>
+      </div>
+      <div class="value sm" style="margin-top:9px">
         {% if simulated %}
           <span class="badge demo">DEMO</span>
         {% else %}
@@ -77,7 +132,8 @@
 
   {% if projects_error or readiness.blockers or readiness.warnings %}
   <div class="card">
-    <div class="card-head"><h2>هشدارها و آمادگی اجرا</h2>
+    <div class="card-head">
+      <h2>{{ icon('alert', 17) }} هشدارها و آمادگی اجرا</h2>
       <a class="small" href="/settings">تنظیمات</a>
     </div>
     <div class="card-body stack">
@@ -108,7 +164,7 @@
   <div class="grid cols-2">
     <div class="card">
       <div class="card-head">
-        <h2>تأییدهای منتظر</h2>
+        <h2>{{ icon('approvals', 16) }} تأییدهای منتظر</h2>
         <a class="small" href="/approvals">همه</a>
       </div>
       <div class="card-body tight">
@@ -121,7 +177,7 @@
                 <td><div>{{ a.title }}</div><div class="tiny muted">{{ a.stage }} · {{ a.id|short_id }}</div></td>
                 <td class="ltr small">{{ a.project }}</td>
                 <td><span class="badge {{ 'red' if a.risk_level == 'high' else 'amber' }}">{{ a.risk_level }}</span></td>
-                <td><a class="btn sm" href="/workflows/{{ a.workflow_id }}">بررسی</a></td>
+                <td><a class="btn sm soft" href="/workflows/{{ a.workflow_id }}">بررسی</a></td>
               </tr>
             {% endfor %}
             </tbody>
@@ -134,7 +190,7 @@
 
     <div class="card">
       <div class="card-head">
-        <h2>آخرین گردش‌کارها</h2>
+        <h2>{{ icon('workflows', 16) }} آخرین گردش‌کارها</h2>
         <a class="small" href="/workflows">همه</a>
       </div>
       <div class="card-body tight">
@@ -161,7 +217,7 @@
 
   <div class="grid cols-2">
     <div class="card">
-      <div class="card-head"><h2>پروژه‌های نمونه</h2><a class="small" href="/projects">جزئیات</a></div>
+      <div class="card-head"><h2>{{ icon('projects', 16) }} پروژه‌های نمونه</h2><a class="small" href="/projects">جزئیات</a></div>
       <div class="card-body tight">
         {% if projects %}
         <table class="table">
@@ -184,7 +240,7 @@
     </div>
 
     <div class="card">
-      <div class="card-head"><h2>آخرین انتشارها</h2></div>
+      <div class="card-head"><h2>{{ icon('rocket', 16) }} آخرین انتشارها</h2></div>
       <div class="card-body tight">
         {% if deployments %}
         <table class="table">
@@ -217,20 +273,35 @@
   </div>
 
   <div class="card">
-    <div class="card-head"><h2>وضعیت اجزا</h2><a class="small" href="/settings">تست اتصال</a></div>
+    <div class="card-head"><h2>{{ icon('server', 16) }} وضعیت اجزا</h2><a class="small" href="/settings">تست اتصال</a></div>
     <div class="card-body">
       <div class="grid cols-3">
-        <div>
-          <div class="tiny muted">Liara</div>
-          <div class="small">{{ adapter.mode }} {% if adapter.simulated %}(شبیه‌سازی){% endif %}</div>
+        <div class="data-list">
+          <div class="item">
+            <div>
+              <div class="name">Liara API</div>
+              <div class="meta">{{ 'شبیه‌ساز محلی' if adapter.simulated else 'اتصال واقعی' }}</div>
+            </div>
+            <span class="badge {{ 'amber' if adapter.simulated else 'live' }}">{{ adapter.mode }}</span>
+          </div>
         </div>
-        <div>
-          <div class="tiny muted">ایجنت کدنویسی</div>
-          <div class="small">{{ coding_agent.provider }} — {{ coding_agent.reason }}</div>
+        <div class="data-list">
+          <div class="item">
+            <div>
+              <div class="name">ایجنت کدنویسی</div>
+              <div class="meta">{{ coding_agent.reason }}</div>
+            </div>
+            <span class="chip ltr">{{ coding_agent.provider }}</span>
+          </div>
         </div>
-        <div>
-          <div class="tiny muted">MCP</div>
-          <div class="small"><a href="/mcp">راهنمای اتصال Claude Code و Codex</a></div>
+        <div class="data-list">
+          <div class="item">
+            <div>
+              <div class="name">MCP</div>
+              <div class="meta">Claude Code · Codex</div>
+            </div>
+            <a class="btn sm" href="/mcp">راهنما</a>
+          </div>
         </div>
       </div>
     </div>

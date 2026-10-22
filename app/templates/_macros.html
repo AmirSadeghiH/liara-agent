@@ -43,6 +43,7 @@
 {%- if value -%}<time data-utc="{{ value }}" class="small muted">{{ value }}</time>{%- else -%}<span class="muted">—</span>{%- endif -%}
 {%- endmacro %}
 
+{% from "_icons.html" import icon %}
 {% macro empty_state(text, hint='') -%}
-<div class="empty"><div class="big">◇</div><div>{{ text }}</div>{% if hint %}<div class="tiny muted" style="margin-top:6px">{{ hint }}</div>{% endif %}</div>
+<div class="empty"><div class="big">{{ icon('inbox', 20) }}</div><div>{{ text }}</div>{% if hint %}<div class="tiny muted" style="margin-top:6px">{{ hint }}</div>{% endif %}</div>
 {%- endmacro %}

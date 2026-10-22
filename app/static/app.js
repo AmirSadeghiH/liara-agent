@@ -397,9 +397,9 @@
         if (!source) return;
         try {
           await navigator.clipboard.writeText(source.textContent);
-          const original = btn.textContent;
+          const original = btn.innerHTML;
           btn.textContent = "کپی شد";
-          window.setTimeout(function () { btn.textContent = original; }, 1500);
+          window.setTimeout(function () { btn.innerHTML = original; }, 1500);
         } catch (err) {
           window.prompt("کپی دستی:", source.textContent);
         }
@@ -407,8 +407,37 @@
     });
   }
 
+  function initSidebar() {
+    const app = document.querySelector(".app");
+    const toggle = document.getElementById("sidebar-toggle");
+    const close = document.getElementById("sidebar-close");
+    const overlay = document.getElementById("sidebar-overlay");
+    if (!app || !toggle) return;
+
+    function setOpen(open) {
+      app.classList.toggle("sidebar-open", open);
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      if (overlay) overlay.hidden = !open;
+      document.body.style.overflow = open ? "hidden" : "";
+    }
+
+    toggle.addEventListener("click", function () {
+      setOpen(!app.classList.contains("sidebar-open"));
+    });
+    if (close) close.addEventListener("click", function () { setOpen(false); });
+    if (overlay) overlay.addEventListener("click", function () { setOpen(false); });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") setOpen(false);
+    });
+    const wide = window.matchMedia("(min-width: 1025px)");
+    if (wide.addEventListener) {
+      wide.addEventListener("change", function (event) { if (event.matches) setOpen(false); });
+    }
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     formatTimes();
+    initSidebar();
     initDecisionButtons();
   });
 

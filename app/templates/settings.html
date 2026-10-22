@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}تنظیمات — {{ app_name }}{% endblock %}
 {% block page_title %}تنظیمات و آمادگی{% endblock %}
 {% block page_sub %}وضعیت پیکربندی بدون افشای رازها؛ تغییر مقادیر فقط از فایل <span class="ltr">.env</span>.{% endblock %}
@@ -7,21 +8,30 @@
 <div class="stack">
   <div class="grid cols-3">
     <div class="card stat">
-      <div class="label">حالت اجرا</div>
-      <div class="value" style="font-size:18px">
-        {% if status.demo_mode %}<span class="badge demo">DEMO</span>{% else %}<span class="badge live">LIVE</span>{% endif %}
+      <div class="stat-top">
+        <div class="label">حالت اجرا</div>
+        <span class="stat-icon">{{ icon('zap', 17) }}</span>
+      </div>
+      <div class="value sm" style="margin-top:9px">
+        {% if status.demo_mode %}<span class="badge demo"><span class="dot amber"></span> DEMO</span>{% else %}<span class="badge live"><span class="dot"></span> LIVE</span>{% endif %}
       </div>
       <div class="hint">{{ adapter.mode }}{% if adapter.simulated %} · شبیه‌سازی{% endif %}</div>
     </div>
     <div class="card stat">
-      <div class="label">آمادگی اجرا</div>
-      <div class="value" style="font-size:18px">
+      <div class="stat-top">
+        <div class="label">آمادگی اجرا</div>
+        <span class="stat-icon">{{ icon('shield', 17) }}</span>
+      </div>
+      <div class="value sm" style="margin-top:9px">
         <span class="badge {{ 'green' if readiness.ready else 'red' }}">{{ 'آماده' if readiness.ready else 'ناقص' }}</span>
       </div>
       <div class="hint">DB و مسیرهای داده بررسی شدند.</div>
     </div>
     <div class="card stat">
-      <div class="label">تأییدهای منتظر</div>
+      <div class="stat-top">
+        <div class="label">تأییدهای منتظر</div>
+        <span class="stat-icon">{{ icon('approvals', 17) }}</span>
+      </div>
       <div class="value">{{ pending_count }}</div>
       <div class="hint"><a href="/approvals">مدیریت تأییدها</a></div>
     </div>
@@ -29,7 +39,7 @@
 
   <div class="card">
     <div class="card-head">
-      <h2>تست اتصال Liara</h2>
+      <h2>{{ icon('zap', 16) }} تست اتصال Liara</h2>
       <button class="btn" id="btn-test-connection" type="button">اجرای تست اتصال</button>
     </div>
     <div class="card-body">
@@ -44,7 +54,7 @@
 
   <div class="grid cols-2">
     <div class="card">
-      <div class="card-head"><h2>پیش‌نیازهای Live</h2>
+      <div class="card-head"><h2>{{ icon('shield', 16) }} پیش‌نیازهای Live</h2>
         <span class="badge {{ 'green' if readiness.live.live_ready else 'amber' }}">
           {{ 'آماده' if readiness.live.live_ready else 'ناقص' }}
         </span>
@@ -73,7 +83,7 @@
     </div>
 
     <div class="card">
-      <div class="card-head"><h2>سیاست نوشتن و انتشار</h2></div>
+      <div class="card-head"><h2>{{ icon('lock', 16) }} سیاست نوشتن و انتشار</h2></div>
       <div class="card-body">
         {% if status.readiness.write_policy.allowed_projects %}
           <div class="row" style="margin-bottom:8px">
@@ -94,7 +104,7 @@
   </div>
 
   <div class="card">
-    <div class="card-head"><h2>ایجنت کدنویسی</h2></div>
+    <div class="card-head"><h2>{{ icon('server', 16) }} ایجنت کدنویسی</h2></div>
     <div class="card-body">
       <div class="grid cols-3">
         <div>
@@ -131,7 +141,7 @@
   </div>
 
   <div class="card">
-    <div class="card-head"><h2>بررسی‌های آمادگی</h2></div>
+    <div class="card-head"><h2>{{ icon('check', 16) }} بررسی‌های آمادگی</h2></div>
     <div class="card-body tight">
       <table class="table">
         <thead><tr><th>بررسی</th><th>وضعیت</th><th>جزئیات</th></tr></thead>
@@ -141,9 +151,9 @@
             <td class="ltr tiny">{{ name }}</td>
             <td>
               {% if check.ok is defined %}
-                <span class="badge {{ 'green' if check.ok else 'red' }}">{{ 'سالم' if check.ok else 'مشکل' }}</span>
+                <span class="badge {{ 'green' if check.ok else 'red' }}"><span class="dot"></span>{{ 'سالم' if check.ok else 'مشکل' }}</span>
               {% else %}
-                <span class="badge {{ 'green' if check.ready else 'amber' }}">{{ 'آماده' if check.ready else 'ناقص' }}</span>
+                <span class="badge {{ 'green' if check.ready else 'amber' }}"><span class="dot"></span>{{ 'آماده' if check.ready else 'ناقص' }}</span>
               {% endif %}
             </td>
             <td class="tiny muted ltr">{{ check.path or check.reason or check.mode or '' }}</td>
@@ -155,7 +165,7 @@
   </div>
 
   <div class="card">
-    <div class="card-head"><h2>سناریوهای دمو</h2></div>
+    <div class="card-head"><h2>{{ icon('spark', 16) }} سناریوهای دمو</h2></div>
     <div class="card-body tight">
       <table class="table">
         <thead><tr><th>کلید</th><th>عنوان</th><th>پروژه</th><th>حادثه</th></tr></thead>

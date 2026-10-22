@@ -3,71 +3,130 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#08222E">
+  <meta name="description" content="LiaraPilot — مهندس زیرساخت هوش مصنوعی برای لیارا: تشخیص شواهدمحور، تأیید انسانی و انتشار کنترل‌شده.">
   <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <link rel="preload" href="/static/fonts/vazirmatn-arabic-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/fonts.css">
   <link rel="stylesheet" href="/static/styles.css">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b8f83'/%3E%3Ctext x='16' y='22' font-size='16' text-anchor='middle' fill='white' font-family='sans-serif'%3EL%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%2308222E'/%3E%3Cpath d='M9 22V10h3.6v9.2H23V22z' fill='%2328C1F5'/%3E%3Ccircle cx='23' cy='11' r='2.4' fill='%2328C1F5'/%3E%3C/svg%3E">
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
+{% from "_icons.html" import icon %}
+<a class="skip-link" href="#content">پرش به محتوا</a>
+
 <div class="app">
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="brand-mark">LP</div>
-      <div>
-        <div class="brand-name">LiaraPilot</div>
-        <div class="brand-sub">AI Infrastructure Engineer</div>
-      </div>
+  <aside class="sidebar" id="sidebar" aria-label="ناوبری اصلی">
+    <div class="sidebar-head">
+      <a class="brand" href="/">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="26" height="26" fill="none">
+            <path d="M7 24V8h4.2v12.6H25V24z" fill="currentColor"/>
+            <circle cx="25" cy="9.6" r="3" fill="currentColor" opacity=".85"/>
+          </svg>
+        </span>
+        <span class="brand-text">
+          <span class="brand-name">LiaraPilot</span>
+          <span class="brand-sub">AI Infrastructure Engineer</span>
+        </span>
+      </a>
+      <button class="icon-btn sidebar-close" type="button" id="sidebar-close" aria-label="بستن منو">
+        {{ icon('close', 18) }}
+      </button>
     </div>
 
-    <nav class="nav">
-      <a href="/" class="{{ 'active' if page == 'dashboard' else '' }}"><span class="icon">◧</span> نمای کلی</a>
-      <a href="/projects" class="{{ 'active' if page == 'projects' else '' }}"><span class="icon">▤</span> پروژه‌ها</a>
-      <a href="/diagnose" class="{{ 'active' if page == 'diagnose' else '' }}"><span class="icon">◎</span> عیب‌یابی</a>
-      <a href="/workflows" class="{{ 'active' if page == 'workflows' else '' }}"><span class="icon">≡</span> گردش‌کارها</a>
-      <a href="/approvals" class="{{ 'active' if page == 'approvals' else '' }}"><span class="icon">✓</span> تأییدها</a>
-      <div class="nav-sep"></div>
-      <a href="/settings" class="{{ 'active' if page == 'settings' else '' }}"><span class="icon">⚙</span> تنظیمات</a>
-      <a href="/mcp" class="{{ 'active' if page == 'mcp' else '' }}"><span class="icon">⌘</span> اتصال MCP</a>
-      <a href="/docs" target="_blank" rel="noopener"><span class="icon">↗</span> OpenAPI</a>
-    </nav>
+    <div class="sidebar-body">
+      <div class="nav-label">عملیات</div>
+      <nav class="nav">
+        <a href="/" class="{{ 'active' if page == 'dashboard' else '' }}" {% if page == 'dashboard' %}aria-current="page"{% endif %}>
+          {{ icon('overview') }}<span>نمای کلی</span>
+        </a>
+        <a href="/projects" class="{{ 'active' if page == 'projects' else '' }}" {% if page == 'projects' %}aria-current="page"{% endif %}>
+          {{ icon('projects') }}<span>پروژه‌ها</span>
+        </a>
+        <a href="/diagnose" class="{{ 'active' if page == 'diagnose' else '' }}" {% if page == 'diagnose' %}aria-current="page"{% endif %}>
+          {{ icon('diagnose') }}<span>عیب‌یابی</span>
+        </a>
+        <a href="/workflows" class="{{ 'active' if page == 'workflows' else '' }}" {% if page == 'workflows' %}aria-current="page"{% endif %}>
+          {{ icon('workflows') }}<span>گردش‌کارها</span>
+        </a>
+        <a href="/approvals" class="{{ 'active' if page == 'approvals' else '' }}" {% if page == 'approvals' %}aria-current="page"{% endif %}>
+          {{ icon('approvals') }}<span>تأییدها</span>
+        </a>
+      </nav>
+
+      <div class="nav-label">سیستم</div>
+      <nav class="nav">
+        <a href="/settings" class="{{ 'active' if page == 'settings' else '' }}" {% if page == 'settings' %}aria-current="page"{% endif %}>
+          {{ icon('settings') }}<span>تنظیمات و آمادگی</span>
+        </a>
+        <a href="/mcp" class="{{ 'active' if page == 'mcp' else '' }}" {% if page == 'mcp' %}aria-current="page"{% endif %}>
+          {{ icon('mcp') }}<span>اتصال MCP</span>
+        </a>
+        <a href="/docs" target="_blank" rel="noopener">
+          {{ icon('book') }}<span>مستندات API</span>{{ icon('docs', 14, 'nav-ext') }}
+        </a>
+      </nav>
+    </div>
 
     <div class="sidebar-foot">
       {% if simulated %}
-        <span class="mode-chip"><span class="dot amber"></span> DEMO / SIMULATED</span>
-        <span>داده‌ها و عملیات شبیه‌سازی شده‌اند.</span>
+        <div class="mode-card">
+          <span class="mode-card-head"><span class="dot amber"></span> DEMO / SIMULATED</span>
+          <span class="mode-card-text">داده‌ها و عملیات شبیه‌سازی شده‌اند؛ هیچ درخواستی به api.liara.ir نمی‌رود.</span>
+        </div>
       {% else %}
-        <span class="mode-chip"><span class="dot"></span> LIVE — Liara API</span>
-        <span>عملیات تغییردهنده فقط با مجوز اجرا می‌شوند.</span>
+        <div class="mode-card live">
+          <span class="mode-card-head"><span class="dot"></span> LIVE — Liara API</span>
+          <span class="mode-card-text">عملیات تغییردهنده فقط با مجوز و تأیید انسانی اجرا می‌شوند.</span>
+        </div>
       {% endif %}
       {% if auth_enabled %}
-        <a href="/logout" style="color:#94a3b8">خروج از نشست</a>
+        <a class="sidebar-link" href="/logout">{{ icon('user', 15) }} خروج از نشست</a>
       {% endif %}
+      <div class="sidebar-meta">LiaraPilot MVP · v0.1.0</div>
     </div>
   </aside>
 
+  <div class="sidebar-overlay" id="sidebar-overlay" hidden></div>
+
   <main class="main">
     <header class="topbar">
-      <div>
+      <button class="icon-btn menu-btn" type="button" id="sidebar-toggle" aria-label="باز کردن منو" aria-controls="sidebar" aria-expanded="false">
+        {{ icon('menu', 20) }}
+      </button>
+      <div class="topbar-title">
+        <div class="eyebrow"><span class="eyebrow-dot"></span> LiaraPilot <span class="eyebrow-sep">/</span> AI Engineer Console</div>
         <h1>{% block page_title %}{% endblock %}</h1>
         <div class="sub">{% block page_sub %}{% endblock %}</div>
       </div>
       <div class="topbar-actions">
         {% block actions %}{% endblock %}
         {% if simulated %}
-          <span class="badge demo"><span class="dot amber"></span> DEMO / SIMULATED</span>
+          <span class="badge demo" title="همه داده‌ها شبیه‌سازی‌شده هستند"><span class="dot amber"></span> DEMO / SIMULATED</span>
         {% else %}
-          <span class="badge live"><span class="dot"></span> LIVE</span>
+          <span class="badge live" title="متصل به API واقعی لیارا"><span class="dot"></span> LIVE</span>
         {% endif %}
       </div>
     </header>
 
-    {% block content %}{% endblock %}
+    <div class="content" id="content">
+      {% block content %}{% endblock %}
 
-    <footer class="tiny muted" style="margin-top:26px">
-      LiaraPilot MVP — داده‌ها از {{ "محیط شبیه‌سازی‌شده" if simulated else "API لیارا" }} می‌آیند.
-      هر عملیات حساس نیازمند تأیید سروری است.
-    </footer>
+      <footer class="footer">
+        <div class="footer-brand">
+          <span class="footer-logo">LiaraPilot</span>
+          <span class="footer-sep">·</span>
+          <span>MVP نسخه ۰.۱.۰</span>
+        </div>
+        <div class="footer-note">
+          داده‌ها از {{ "محیط شبیه‌سازی‌شده" if simulated else "API لیارا" }} می‌آیند · هر عملیات حساس نیازمند تأیید سروری است.
+        </div>
+      </footer>
+    </div>
   </main>
 </div>
+
 <script src="/static/app.js"></script>
 {% block scripts %}{% endblock %}
 </body>

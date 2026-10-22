@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% from "_macros.html" import status_badge, approval_status, risk_badge, confidence_badge, time_tag, empty_state %}
 {% block title %}گردش‌کار {{ workflow.workflow_id }} — {{ app_name }}{% endblock %}
 {% block page_title %}گردش‌کار {{ workflow.workflow_id }}{% endblock %}
@@ -8,10 +9,10 @@
   {% if workflow.simulated %}<span class="badge demo">شبیه‌سازی‌شده</span>{% endif %}
 {% endblock %}
 {% block actions %}
-  <a class="btn" href="/workflows">بازگشت</a>
-  <button class="btn" type="button" id="btn-wf-refresh">به‌روزرسانی</button>
+  <a class="btn ghost" href="/workflows">{{ icon('arrow-right', 15) }} بازگشت</a>
+  <button class="btn" type="button" id="btn-wf-refresh">{{ icon('refresh', 15) }} به‌روزرسانی</button>
   {% if workflow.status not in ['completed', 'failed', 'cancelled'] %}
-    <button class="btn danger" type="button" id="btn-wf-cancel">لغو گردش‌کار</button>
+    <button class="btn danger" type="button" id="btn-wf-cancel">{{ icon('close', 15) }} لغو گردش‌کار</button>
   {% endif %}
 {% endblock %}
 
@@ -21,7 +22,7 @@
      data-status="{{ workflow.status }}"
      data-simulated="{{ 'true' if workflow.simulated else 'false' }}">
 
-  <div class="card">
+  <div class="card wf-head">
     <div class="card-head">
       <div class="row">
         <span id="wf-status-badge">{{ status_badge(workflow.status) }}</span>
@@ -34,7 +35,8 @@
       </div>
     </div>
     <div class="card-body">
-      <div class="small"><strong>درخواست:</strong> {{ workflow.request }}</div>
+      <div class="tiny muted" style="margin-bottom:4px">درخواست کاربر</div>
+      <div class="wf-request">{{ workflow.request }}</div>
       {% if workflow.error %}
         <div class="alert error" style="margin-top:10px">خطا: {{ workflow.error }}</div>
       {% endif %}
@@ -46,9 +48,9 @@
     </div>
   </div>
 
-  <div class="card" id="approval-card" style="{% if not pending %}display:none{% endif %}">
-    <div class="card-head" style="background:#fffdf7">
-      <h2>درخواست تأیید — عملیات حساس</h2>
+  <div class="card approval-card" id="approval-card" style="{% if not pending %}display:none{% endif %}">
+    <div class="card-head">
+      <h2>{{ icon('shield', 17) }} درخواست تأیید — عملیات حساس</h2>
       <div class="row">
         {% if pending %}{{ risk_badge(pending.risk_level) }}{{ approval_status(pending.status) }}{% endif %}
       </div>
@@ -87,12 +89,13 @@
 
   <div class="grid cols-2">
     <div class="card">
-      <div class="card-head"><h2>مراحل اجرا</h2><span class="tiny muted">به‌روزرسانی خودکار</span></div>
+      <div class="card-head"><h2>{{ icon('workflows', 16) }} مراحل اجرا</h2><span class="tiny muted">به‌روزرسانی خودکار</span></div>
       <div class="card-body">
         <div class="steps" id="wf-timeline">
-          {% for e in workflow.events if e.step %}
-            <div class="step {{ 'done' if e.status == 'completed' else ('active' if e.status == 'running' else 'failed') }}">
-              <div class="bullet">{{ '✓' if e.status == 'completed' else ('•' if e.status == 'running' else '!') }}</div>
+          {% for e in workflow.events|selectattr('step')|list|reverse|unique(attribute='step')|reverse|list %}
+            {% set st = e.status %}
+            <div class="step {{ 'done' if st == 'completed' else ('waiting' if st == 'waiting_for_approval' else ('failed' if st in ['failed', 'error'] else 'active')) }}">
+              <div class="bullet">{{ '✓' if st == 'completed' else ('!' if st in ['failed', 'error'] else '•') }}</div>
               <div>
                 <div class="title">{{ e.data.get('label_fa', e.step) if e.data else e.step }}</div>
                 <div class="desc">{{ e.message or '' }}</div>
@@ -105,7 +108,7 @@
     </div>
 
     <div class="card">
-      <div class="card-head"><h2>خلاصه تحلیل</h2>
+      <div class="card-head"><h2>{{ icon('diagnose', 16) }} خلاصه تحلیل</h2>
         {% if workflow.diagnosis %}{{ confidence_badge(workflow.diagnosis.get('confidence')) }}{% endif %}
       </div>
       <div class="card-body">
@@ -138,7 +141,7 @@
   {% if workflow.diagnosis %}
   <div class="grid cols-2">
     <div class="card">
-      <div class="card-head"><h2>شواهد و استدلال</h2><span class="chip">{{ evidence_rows|length }} رکورد</span></div>
+      <div class="card-head"><h2>{{ icon('search', 16) }} شواهد و استدلال</h2><span class="chip">{{ evidence_rows|length }} رکورد</span></div>
       <div class="card-body stack">
         {% for statement in workflow.diagnosis.get('evidence', []) %}
           <div class="evidence-item"><div class="summary">{{ statement }}</div></div>
@@ -163,7 +166,7 @@
     </div>
 
     <div class="card">
-      <div class="card-head"><h2>ریسک و روش راستی‌آزمایی</h2></div>
+      <div class="card-head"><h2>{{ icon('shield', 16) }} ریسک و روش راستی‌آزمایی</h2></div>
       <div class="card-body small" style="display:grid;gap:10px">
         <div><strong>ریسک اقدام:</strong> {{ workflow.diagnosis.get('risk') }}</div>
         <div><strong>روش بررسی نتیجه:</strong> {{ workflow.diagnosis.get('verification_method') }}</div>
@@ -180,7 +183,7 @@
   {% if workflow.repair_plan or workflow.coding_agent_runs %}
   <div class="card">
     <div class="card-head">
-      <h2>اصلاح و تست</h2>
+      <h2>{{ icon('spark', 16) }} اصلاح و تست</h2>
       <div class="row">
         {% if workflow.branch %}<span class="chip ltr">{{ workflow.branch }}</span>{% endif %}
         {% if workflow.test_results %}
@@ -252,7 +255,7 @@
   <div class="grid cols-2">
     <div class="card">
       <div class="card-head">
-        <h2>انتشار</h2>
+        <h2>{{ icon('rocket', 16) }} انتشار</h2>
         {% if workflow.deployment and workflow.deployment.get('simulated') %}
           <span class="badge amber">SIMULATED RELEASE</span>
         {% endif %}
@@ -281,7 +284,7 @@
 
     <div class="card">
       <div class="card-head">
-        <h2>بررسی سلامت</h2>
+        <h2>{{ icon('check', 16) }} بررسی سلامت</h2>
         {% if workflow.verification %}
           {% set v = workflow.verification %}
           <span class="badge {{ 'green' if v.get('status') == 'verified' else ('red' if v.get('status') == 'failed' else 'amber') }}">
@@ -316,7 +319,7 @@
   {% if workflow.final_report %}
   <div class="card">
     <div class="card-head">
-      <h2>گزارش نهایی</h2>
+      <h2>{{ icon('book', 16) }} گزارش نهایی</h2>
       <div class="row">
         <span class="badge {{ 'green' if workflow.final_report.get('outcome') == 'completed' else ('red' if workflow.final_report.get('outcome') == 'failed' else 'amber') }}">
           {{ workflow.final_report.get('outcome') }}
@@ -356,7 +359,7 @@
   {% endif %}
 
   <div class="card">
-    <div class="card-head"><h2>تاریخچه رویدادها</h2><span class="chip">{{ workflow.events|length }}</span></div>
+    <div class="card-head"><h2>{{ icon('clock', 16) }} تاریخچه رویدادها</h2><span class="chip">{{ workflow.events|length }}</span></div>
     <div class="card-body tight">
       <table class="table">
         <thead><tr><th>مرحله</th><th>وضعیت</th><th>پیام</th><th>زمان</th></tr></thead>

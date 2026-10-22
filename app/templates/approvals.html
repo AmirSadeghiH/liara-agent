@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import approval_status, risk_badge, time_tag, empty_state, status_badge %}
+{% from "_icons.html" import icon %}
 {% block title %}تأییدها — {{ app_name }}{% endblock %}
 {% block page_title %}تأییدهای انسانی{% endblock %}
 {% block page_sub %}عملیات حساس فقط پس از تأیید سروری و با اعتبار یک‌بارمصرف اجرا می‌شوند.{% endblock %}
@@ -11,15 +12,21 @@
     تأیید بی‌اعتبار می‌شود و درخواست تازه لازم است.
   </div>
 
+  <div class="spread">
+    <h2 class="panel-title">{{ icon('approvals', 18) }} صف تأیید</h2>
+    {% if pending %}<span class="badge amber">{{ pending|length }} درخواست منتظر</span>
+    {% else %}<span class="badge gray">صف خالی</span>{% endif %}
+  </div>
+
   {% if pending %}
     <div class="stack">
       {% for a in pending %}
-      <div class="card">
+      <div class="card approval-card">
         <div class="card-head">
           <div class="row">
-            <h2>{{ a.title }}</h2>
+            <h2>{{ icon('shield', 17) }} {{ a.title }}</h2>
             {{ risk_badge(a.risk_level) }}{{ approval_status(a.status) }}
-            {% if a.simulated %}<span class="badge demo">شبیه‌سازی</span>{% endif %}
+            {% if a.simulated %}<span class="badge demo"><span class="dot amber"></span> شبیه‌سازی</span>{% endif %}
           </div>
           <span class="tiny muted">{{ time_tag(a.requested_at) }}</span>
         </div>
@@ -33,16 +40,20 @@
                 <dt>انقضا</dt><dd>{{ time_tag(a.expires_at) }}</dd>
                 <dt>شناسه</dt><dd class="ltr tiny">{{ a.id }}</dd>
               </dl>
-              <p class="small" style="margin-top:10px"><strong>دلیل:</strong> {{ a.reason }}</p>
+              <p class="small" style="margin-top:12px"><strong>دلیل:</strong> {{ a.reason }}</p>
             </div>
             <div>
               <div class="tiny muted" style="margin-bottom:6px">پارامترها</div>
               <pre class="code">{{ a.params | tojson(indent=2) }}</pre>
             </div>
           </div>
-          <div class="row" style="margin-top:12px">
-            <button class="btn primary" type="button" data-approval-id="{{ a.id }}" data-decision="approved">تأیید</button>
-            <button class="btn danger" type="button" data-approval-id="{{ a.id }}" data-decision="rejected">رد</button>
+          <div class="row" style="margin-top:14px">
+            <button class="btn primary" type="button" data-approval-id="{{ a.id }}" data-decision="approved">
+              {{ icon('check', 16) }} تأیید
+            </button>
+            <button class="btn danger" type="button" data-approval-id="{{ a.id }}" data-decision="rejected">
+              {{ icon('close', 15) }} رد
+            </button>
             <a class="btn ghost" href="/workflows/{{ a.workflow_id }}">مشاهده گردش‌کار</a>
           </div>
         </div>
@@ -50,11 +61,16 @@
       {% endfor %}
     </div>
   {% else %}
-    <div class="card"><div class="card-body">{{ empty_state("تأییدی در انتظار تصمیم نیست.") }}</div></div>
+    <div class="card">
+      <div class="card-body">{{ empty_state("تأییدی در انتظار تصمیم نیست.", "وقتی گردش‌کاری به عملیات حساس برسد، اینجا ظاهر می‌شود.") }}</div>
+    </div>
   {% endif %}
 
   <div class="card">
-    <div class="card-head"><h2>تاریخچه تصمیم‌ها</h2></div>
+    <div class="card-head">
+      <h2>{{ icon('clock', 16) }} تاریخچه تصمیم‌ها</h2>
+      <span class="chip">{{ history|length }} رکورد</span>
+    </div>
     <div class="card-body tight">
       {% if history %}
       <table class="table">

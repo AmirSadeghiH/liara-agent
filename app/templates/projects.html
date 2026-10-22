@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% from "_macros.html" import time_tag, empty_state %}
+{% from "_icons.html" import icon %}
 {% block title %}پروژه‌ها — {{ app_name }}{% endblock %}
 {% block page_title %}پروژه‌ها{% endblock %}
 {% block page_sub %}فهرست پروژه‌های قابل‌مشاهده و وضعیت استقرار آن‌ها.{% endblock %}
-{% block actions %}<a class="btn" href="/diagnose">عیب‌یابی پروژه</a>{% endblock %}
+{% block actions %}<a class="btn" href="/diagnose">{{ icon('diagnose', 15) }} عیب‌یابی پروژه</a>{% endblock %}
 
 {% block content %}
 <div class="stack">
@@ -13,7 +14,7 @@
 
   <div class="card">
     <div class="card-head">
-      <h2>{{ projects|length }} پروژه</h2>
+      <h2>{{ icon('projects', 16) }} {{ projects|length }} پروژه</h2>
       <span class="badge {{ 'amber' if simulated else 'live' }}">
         {{ 'DEMO / شبیه‌سازی‌شده' if simulated else 'LIVE — Liara API' }}
       </span>
@@ -27,16 +28,20 @@
         <tbody>
         {% for p in projects %}
           <tr>
-            <td class="ltr">{{ p.name }}</td>
+            <td class="ltr"><a href="/diagnose?project={{ p.name }}">{{ p.name }}</a></td>
             <td class="ltr small">{{ p.type }}</td>
-            <td><span class="badge {{ 'green' if p.status == 'running' else 'gray' }}">{{ p.status }}</span></td>
+            <td>
+              <span class="badge {{ 'green' if p.status == 'running' else 'gray' }}">
+                <span class="dot"></span>{{ p.status }}
+              </span>
+            </td>
             <td class="ltr small">{{ p.plan_id }}</td>
             <td>
               {% if p.is_deployed %}<span class="badge teal">deployed</span>
               {% else %}<span class="badge gray">بدون انتشار</span>{% endif %}
             </td>
             <td class="tiny">{{ time_tag(p.created_at) }}</td>
-            <td><a class="btn sm" href="/diagnose?project={{ p.name }}">عیب‌یابی</a></td>
+            <td><a class="btn sm soft" href="/diagnose?project={{ p.name }}">عیب‌یابی</a></td>
           </tr>
         {% endfor %}
         </tbody>
@@ -51,7 +56,7 @@
   </div>
 
   <div class="card">
-    <div class="card-head"><h2>سیاست عملیات تغییردهنده</h2></div>
+    <div class="card-head"><h2>{{ icon('shield', 16) }} سیاست عملیات تغییردهنده</h2></div>
     <div class="card-body">
       {% if allowed_write_projects %}
         <p class="small">پروژه‌های مجاز برای عملیات تغییردهنده:</p>
