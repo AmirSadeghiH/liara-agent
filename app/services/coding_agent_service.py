@@ -18,6 +18,7 @@ import difflib
 import hashlib
 import importlib.util
 import logging
+import os
 import shutil
 import sys
 import time
@@ -218,17 +219,44 @@ class WorkspaceManager:
         return WorkspaceInfo(path=destination, branch=branch, git=git)
 
     async def _prepare_git(self, workspace: Path, branch: str) -> dict[str, Any]:
+        """Initialise an isolated repository inside the workspace.
+
+        The workspace lives inside the application's own checkout (``data/workspaces``),
+        so a plain ``git rev-parse`` would resolve to the *host* repository. Branching
+        there would silently switch the developer's checkout to ``ai-fix/...``. We
+        therefore require the workspace to be its own repository root before running
+        any branch operation.
+        """
         git = shutil.which("git")
         if not git:
             return {"available": False, "reason": "git not installed", "initialised": False}
-        inside = await run_command([git, "rev-parse", "--is-inside-work-tree"],
-                                   cwd=workspace, max_seconds=15)
+
+        target = os.path.normcase(str(await asyncio.to_thread(workspace.resolve)))
+
+        async def toplevel() -> str | None:
+            result = await run_command(
+                [git, "rev-parse", "--show-toplevel"], cwd=workspace, max_seconds=15
+            )
+            if not result.ok or not result.stdout.strip():
+                return None
+            try:
+                resolved = await asyncio.to_thread(Path(result.stdout.strip()).resolve)
+            except OSError:  # pragma: no cover - defensive
+                return None
+            return os.path.normcase(str(resolved))
+
         initialised = False
-        if not inside.ok:
+        if await toplevel() != target:
             init = await run_command([git, "init", "-q"], cwd=workspace, max_seconds=30)
             if not init.ok:
                 return {"available": True, "initialised": False, "reason": init.stderr[-300:]}
             initialised = True
+        if await toplevel() != target:
+            return {
+                "available": True,
+                "initialised": initialised,
+                "reason": "workspace is not an isolated git repository; branch operations were skipped.",
+            }
         checkout = await run_command([git, "checkout", "-B", branch], cwd=workspace, max_seconds=30)
         if not checkout.ok:
             return {"available": True, "initialised": initialised, "reason": checkout.stderr[-300:]}

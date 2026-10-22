@@ -353,3 +353,59 @@ def test_audit_log_contains_no_token(client):
     token = client.app.state.settings.liara_token
     if token:
         assert token not in content
+
+
+# ---------------------------------------------------------------------------
+# workspace isolation (regression: never branch the host repository)
+# ---------------------------------------------------------------------------
+def _git(git: str, cwd: Path, *args: str) -> str:
+    import subprocess
+
+    result = subprocess.run(
+        [git, "-C", str(cwd), *args], capture_output=True, text=True, check=True
+    )
+    return result.stdout.strip()
+
+
+def test_workspace_git_repository_is_isolated_from_the_host_checkout(tmp_path):
+    """A workspace inside the host repo must get its own repository.
+
+    Regression test for a bug where ``git checkout -B ai-fix/...`` ran inside the
+    enclosing checkout and silently switched the developer's branch.
+    """
+    import asyncio
+    import shutil
+    import subprocess
+
+    from app.services.coding_agent_service import WorkspaceManager
+
+    git = shutil.which("git")
+    if not git:
+        pytest.skip("git is not installed")
+
+    host = tmp_path / "host"
+    host.mkdir()
+    subprocess.run([git, "init", "-q", str(host)], check=True)
+    (host / "app.py").write_text("print('host')\n", encoding="utf-8")
+    _git(git, host, "add", "-A")
+    subprocess.run(
+        [git, "-C", str(host), "-c", "user.name=test", "-c", "user.email=test@example.com",
+         "commit", "-qm", "init"],
+        check=True,
+    )
+    host_branch = _git(git, host, "rev-parse", "--abbrev-ref", "HEAD")
+
+    workspace = host / "data" / "workspaces" / "wf-test"
+    workspace.mkdir(parents=True)
+    (workspace / "app.py").write_text("print('workspace')\n", encoding="utf-8")
+
+    manager = WorkspaceManager(make_settings(tmp_path), None)  # audit unused by _prepare_git
+    info = asyncio.run(manager._prepare_git(workspace, "ai-fix/wf-test"))
+
+    assert info["initialised"] is True
+    assert Path(_git(git, workspace, "rev-parse", "--show-toplevel")) == workspace.resolve()
+    assert _git(git, workspace, "rev-parse", "--abbrev-ref", "HEAD") == "ai-fix/wf-test"
+
+    # the enclosing repository is untouched
+    assert _git(git, host, "rev-parse", "--abbrev-ref", "HEAD") == host_branch
+    assert _git(git, host, "branch", "--list", "ai-fix/*") == ""
