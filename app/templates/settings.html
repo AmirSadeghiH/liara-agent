@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}تنظیمات — {{ app_name }}{% endblock %}
+{% block page_title %}تنظیمات و آمادگی{% endblock %}
+{% block page_sub %}وضعیت پیکربندی بدون افشای رازها؛ تغییر مقادیر فقط از فایل <span class="ltr">.env</span>.{% endblock %}
+
+{% block content %}
+<div class="stack">
+  <div class="grid cols-3">
+    <div class="card stat">
+      <div class="label">حالت اجرا</div>
+      <div class="value" style="font-size:18px">
+        {% if status.demo_mode %}<span class="badge demo">DEMO</span>{% else %}<span class="badge live">LIVE</span>{% endif %}
+      </div>
+      <div class="hint">{{ adapter.mode }}{% if adapter.simulated %} · شبیه‌سازی{% endif %}</div>
+    </div>
+    <div class="card stat">
+      <div class="label">آمادگی اجرا</div>
+      <div class="value" style="font-size:18px">
+        <span class="badge {{ 'green' if readiness.ready else 'red' }}">{{ 'آماده' if readiness.ready else 'ناقص' }}</span>
+      </div>
+      <div class="hint">DB و مسیرهای داده بررسی شدند.</div>
+    </div>
+    <div class="card stat">
+      <div class="label">تأییدهای منتظر</div>
+      <div class="value">{{ pending_count }}</div>
+      <div class="hint"><a href="/approvals">مدیریت تأییدها</a></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>تست اتصال Liara</h2>
+      <button class="btn" id="btn-test-connection" type="button">اجرای تست اتصال</button>
+    </div>
+    <div class="card-body">
+      <div id="connection-result" class="small muted">هنوز تستی اجرا نشده است.</div>
+      {% if status.demo_mode %}
+        <div class="alert info small" style="margin-top:10px">
+          در حالت DEMO هیچ درخواستی به <span class="ltr">api.liara.ir</span> ارسال نمی‌شود؛ تست اتصال فقط آداپتور شبیه‌ساز را بررسی می‌کند.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="grid cols-2">
+    <div class="card">
+      <div class="card-head"><h2>پیش‌نیازهای Live</h2>
+        <span class="badge {{ 'green' if readiness.live.live_ready else 'amber' }}">
+          {{ 'آماده' if readiness.live.live_ready else 'ناقص' }}
+        </span>
+      </div>
+      <div class="card-body">
+        {% if readiness.live.blockers %}
+          <div class="alert error small">
+            موانع:
+            <ul>{% for b in readiness.live.blockers %}<li>{{ b }}</li>{% endfor %}</ul>
+          </div>
+        {% endif %}
+        {% if readiness.live.warnings %}
+          <div class="alert warn small" style="margin-top:10px">
+            هشدارها:
+            <ul>{% for b in readiness.live.warnings %}<li>{{ b }}</li>{% endfor %}</ul>
+          </div>
+        {% endif %}
+        <dl class="kv" style="margin-top:12px">
+          <dt>Base URL</dt><dd class="ltr">{{ status.liara.base_url }}</dd>
+          <dt>توکن</dt><dd>{{ 'تنظیم شده' if status.liara.token_configured else 'تنظیم نشده' }}</dd>
+          <dt>نوع احراز هویت</dt><dd class="ltr">{{ status.liara.auth_scheme }}</dd>
+          <dt>Timeout</dt><dd>{{ status.liara.timeout_seconds }}s</dd>
+          <dt>Retry</dt><dd>{{ status.liara.max_retries }}</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>سیاست نوشتن و انتشار</h2></div>
+      <div class="card-body">
+        {% if status.readiness.write_policy.allowed_projects %}
+          <div class="row" style="margin-bottom:8px">
+            {% for p in status.readiness.write_policy.allowed_projects %}<span class="chip ltr">{{ p }}</span>{% endfor %}
+          </div>
+        {% else %}
+          <div class="alert warn small">هیچ پروژه‌ای برای عملیات تغییردهنده مجاز نیست.</div>
+        {% endif %}
+        <dl class="kv" style="margin-top:10px">
+          <dt>Allow writes</dt><dd class="ltr">{{ status.readiness.write_policy.allow_writes }}</dd>
+          <dt>Enable deploy</dt><dd class="ltr">{{ status.readiness.write_policy.enable_deploy }}</dd>
+          <dt>Git push</dt><dd class="ltr">{{ status.readiness.write_policy.git_push_allowed }}</dd>
+          <dt>Approval TTL</dt><dd>{{ status.hitl.approval_ttl_minutes }} دقیقه</dd>
+          <dt>تأیید انتشار</dt><dd>{{ 'اجباری' if status.hitl.require_production_deploy_approval else 'غیرفعال' }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>ایجنت کدنویسی</h2></div>
+    <div class="card-body">
+      <div class="grid cols-3">
+        <div>
+          <div class="tiny muted">ارائه‌دهنده فعال</div>
+          <div class="ltr">{{ coding_agent.configured_provider }}</div>
+        </div>
+        <div>
+          <div class="tiny muted">اجرای خودکار</div>
+          <div class="ltr">{{ coding_agent.auto_execute }}</div>
+        </div>
+        <div>
+          <div class="tiny muted">Push به Git</div>
+          <div class="ltr">{{ coding_agent.git_push_allowed }}</div>
+        </div>
+      </div>
+      <table class="table" style="margin-top:12px">
+        <thead><tr><th>CLI</th><th>نصب</th><th>نسخه</th><th>وضعیت</th></tr></thead>
+        <tbody>
+          {% for p in coding_agent.providers %}
+          <tr>
+            <td class="ltr">{{ p.provider }}</td>
+            <td>{{ 'بله' if p.installed else 'خیر' }}</td>
+            <td class="ltr tiny">{{ p.version or '—' }}</td>
+            <td class="small">{{ p.reason }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="alert info tiny" style="margin-top:10px">
+        توکن لیارا هرگز به ایجنت کدنویسی داده نمی‌شود؛ ایجنت فقط در Workspace ایزوله کار می‌کند و
+        دسترسی شبکه/انتشار ندارد.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>بررسی‌های آمادگی</h2></div>
+    <div class="card-body tight">
+      <table class="table">
+        <thead><tr><th>بررسی</th><th>وضعیت</th><th>جزئیات</th></tr></thead>
+        <tbody>
+        {% for name, check in readiness.checks.items() %}
+          <tr>
+            <td class="ltr tiny">{{ name }}</td>
+            <td>
+              {% if check.ok is defined %}
+                <span class="badge {{ 'green' if check.ok else 'red' }}">{{ 'سالم' if check.ok else 'مشکل' }}</span>
+              {% else %}
+                <span class="badge {{ 'green' if check.ready else 'amber' }}">{{ 'آماده' if check.ready else 'ناقص' }}</span>
+              {% endif %}
+            </td>
+            <td class="tiny muted ltr">{{ check.path or check.reason or check.mode or '' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>سناریوهای دمو</h2></div>
+    <div class="card-body tight">
+      <table class="table">
+        <thead><tr><th>کلید</th><th>عنوان</th><th>پروژه</th><th>حادثه</th></tr></thead>
+        <tbody>
+        {% for s in scenarios %}
+          <tr>
+            <td class="ltr tiny">{{ s.key }}</td>
+            <td class="small">{{ s.title_fa }}</td>
+            <td class="ltr small">{{ s.project }}</td>
+            <td>{{ 'بله' if s.has_incident else 'خیر' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-foot tiny muted">
+      این صفحه فقط وضعیت را نمایش می‌دهد. برای تغییر تنظیمات، فایل <span class="ltr">.env</span> را ویرایش و سرور را
+      دوباره اجرا کنید؛ هیچ مقدار حساسی در UI نمایش داده نمی‌شود.
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>LP.initSettings();</script>
+{% endblock %}

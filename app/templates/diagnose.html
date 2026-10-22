@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% from "_macros.html" import confidence_badge %}
+{% block title %}عیب‌یابی — {{ app_name }}{% endblock %}
+{% block page_title %}عیب‌یابی{% endblock %}
+{% block page_sub %}مشکل را توضیح بده؛ دستیار شواهد را جمع می‌کند و با تأیید تو اصلاح و انتشار را انجام می‌دهد.{% endblock %}
+
+{% block content %}
+<div class="stack">
+  <div class="grid cols-2">
+    <div class="card">
+      <div class="card-head"><h2>درخواست جدید</h2>
+        {% if simulated %}<span class="badge demo">DEMO</span>{% else %}<span class="badge live">LIVE</span>{% endif %}
+      </div>
+      <div class="card-body">
+        <form class="form" id="diagnose-form">
+          <div class="field">
+            <label for="project">پروژه</label>
+            <select id="project" name="project" {% if not projects %}disabled{% endif %}>
+              {% for p in projects %}
+                <option value="{{ p.name }}" {{ 'selected' if suggested == p.name else '' }}>
+                  {{ p.name }} — {{ p.type }} ({{ p.status }})
+                </option>
+              {% endfor %}
+            </select>
+            {% if not projects %}<span class="help">پروژه‌ای در دسترس نیست؛ ابتدا اتصال Liara را بررسی کنید.</span>{% endif %}
+          </div>
+
+          <div class="field">
+            <label for="request">شرح مشکل</label>
+            <textarea id="request" name="request">سایت من خطای 500 می‌دهد. لاگ‌ها را بررسی کن، بررسی کن مشکل از CPU یا RAM است یا نه و علت احتمالی را با شواهد توضیح بده.</textarea>
+            <span class="help">متن درخواست به مدل داده نمی‌شود مگر LLM فعال باشد؛ در هر حال توکن لیارا ارسال نمی‌شود.</span>
+          </div>
+
+          <div class="row">
+            <button class="btn primary" type="submit" id="btn-start-workflow" {% if not projects %}disabled{% endif %}>
+              شروع گردش‌کار کامل
+            </button>
+            <button class="btn" type="button" id="btn-quick-diagnose" {% if not projects %}disabled{% endif %}>
+              تشخیص سریع (بدون تغییر)
+            </button>
+          </div>
+          <div id="diagnose-message" class="small"></div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>چه اتفاقی می‌افتد؟</h2></div>
+      <div class="card-body">
+        <ol class="small" style="margin:0;padding-inline-start:18px;display:grid;gap:6px">
+          <li>جمع‌آوری شواهد: وضعیت پروژه، لاگ‌ها، CPU و RAM، تاریخچه انتشار.</li>
+          <li>تحلیل قاعده‌محور (و در صورت فعال بودن LLM، تحلیل تکمیلی).</li>
+          <li>ساخت برنامه اصلاح و <strong>توقف برای تأیید تو</strong>.</li>
+          <li>اجرای ایجنت کدنویسی در Workspace ایزوله و اجرای تست‌ها.</li>
+          <li>بررسی Diff و فایل‌های حساس.</li>
+          <li>ارسال سورس، <strong>تأیید دوم برای Release</strong>، بررسی سلامت.</li>
+        </ol>
+        <div class="alert info small" style="margin-top:12px">
+          در حالت Live، هیچ عملیات تغییردهنده‌ای بدون
+          <span class="ltr">LIARA_ALLOW_WRITES=true</span> و allowlist پروژه اجرا نمی‌شود.
+        </div>
+      </div>
+      <div class="card-foot tiny muted">
+        ایجنت کدنویسی: {{ coding_agent.provider }}
+        {% if coding_agent.version %}({{ coding_agent.version }}){% endif %}
+        — {{ coding_agent.reason }}
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="quick-result" style="display:none">
+    <div class="card-head">
+      <h2>نتیجه تشخیص سریع</h2>
+      <a class="small" id="quick-link" href="#">مشاهده جزئیات</a>
+    </div>
+    <div class="card-body" id="quick-body"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  LP.initDiagnose();
+</script>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% from "_macros.html" import approval_status, risk_badge, time_tag, empty_state, status_badge %}
+{% block title %}تأییدها — {{ app_name }}{% endblock %}
+{% block page_title %}تأییدهای انسانی{% endblock %}
+{% block page_sub %}عملیات حساس فقط پس از تأیید سروری و با اعتبار یک‌بارمصرف اجرا می‌شوند.{% endblock %}
+
+{% block content %}
+<div class="stack">
+  <div class="alert info small">
+    تأیید به شناسه گردش‌کار، مرحله و اثر انگشت پارامترها گره خورده است. با تغییر پارامترها یا انقضای مهلت،
+    تأیید بی‌اعتبار می‌شود و درخواست تازه لازم است.
+  </div>
+
+  {% if pending %}
+    <div class="stack">
+      {% for a in pending %}
+      <div class="card">
+        <div class="card-head">
+          <div class="row">
+            <h2>{{ a.title }}</h2>
+            {{ risk_badge(a.risk_level) }}{{ approval_status(a.status) }}
+            {% if a.simulated %}<span class="badge demo">شبیه‌سازی</span>{% endif %}
+          </div>
+          <span class="tiny muted">{{ time_tag(a.requested_at) }}</span>
+        </div>
+        <div class="card-body">
+          <div class="grid cols-2">
+            <div>
+              <dl class="kv">
+                <dt>پروژه</dt><dd class="ltr">{{ a.project }}</dd>
+                <dt>مرحله</dt><dd class="ltr">{{ a.stage }}</dd>
+                <dt>اقدام</dt><dd class="ltr">{{ a.action }}</dd>
+                <dt>انقضا</dt><dd>{{ time_tag(a.expires_at) }}</dd>
+                <dt>شناسه</dt><dd class="ltr tiny">{{ a.id }}</dd>
+              </dl>
+              <p class="small" style="margin-top:10px"><strong>دلیل:</strong> {{ a.reason }}</p>
+            </div>
+            <div>
+              <div class="tiny muted" style="margin-bottom:6px">پارامترها</div>
+              <pre class="code">{{ a.params | tojson(indent=2) }}</pre>
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <button class="btn primary" type="button" data-approval-id="{{ a.id }}" data-decision="approved">تأیید</button>
+            <button class="btn danger" type="button" data-approval-id="{{ a.id }}" data-decision="rejected">رد</button>
+            <a class="btn ghost" href="/workflows/{{ a.workflow_id }}">مشاهده گردش‌کار</a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="card"><div class="card-body">{{ empty_state("تأییدی در انتظار تصمیم نیست.") }}</div></div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-head"><h2>تاریخچه تصمیم‌ها</h2></div>
+    <div class="card-body tight">
+      {% if history %}
+      <table class="table">
+        <thead><tr><th>اقدام</th><th>پروژه</th><th>وضعیت</th><th>مصرف</th><th>زمان درخواست</th><th></th></tr></thead>
+        <tbody>
+        {% for a in history %}
+          <tr>
+            <td><div class="small">{{ a.title }}</div><div class="tiny muted ltr">{{ a.id }}</div></td>
+            <td class="ltr small">{{ a.project }}</td>
+            <td>{{ approval_status(a.status) }}</td>
+            <td class="tiny">{{ time_tag(a.consumed_at) if a.consumed_at else '—' }}</td>
+            <td class="tiny">{{ time_tag(a.requested_at) }}</td>
+            <td><a class="btn sm" href="/workflows/{{ a.workflow_id }}">گردش‌کار</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        {{ empty_state("تصمیمی ثبت نشده است.") }}
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>LP.initApprovals();</script>
+{% endblock %}

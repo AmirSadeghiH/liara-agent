@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}خطا — {{ app_name }}{% endblock %}
+{% block page_title %}خطا{% endblock %}
+{% block page_sub %}درخواست قابل انجام نبود.{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:640px;margin:30px auto">
+  <div class="card-head"><h2>{{ error.code }}</h2></div>
+  <div class="card-body">
+    <p class="small">{{ error.message }}</p>
+    <div class="row" style="margin-top:12px">
+      <a class="btn" href="/">بازگشت به نمای کلی</a>
+      <a class="btn ghost" href="/workflows">گردش‌کارها</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

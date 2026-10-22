@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}ورود — {{ app_name }}{% endblock %}
+{% block page_title %}ورود به LiaraPilot{% endblock %}
+{% block page_sub %}این نمونه روی شبکه منتشر شده و احراز هویت برنامه فعال است.{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:460px;margin:40px auto">
+  <div class="card-head"><h2>توکن دسترسی</h2></div>
+  <div class="card-body">
+    {% if error %}<div class="alert error" style="margin-bottom:10px">{{ error }}</div>{% endif %}
+    <form class="form" method="post" action="/login">
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="field">
+        <label for="token">APP_ACCESS_TOKEN</label>
+        <input type="password" id="token" name="token" autocomplete="current-password" required>
+        <span class="help">این مقدار با LIARA_API_TOKEN متفاوت است و فقط برای ورود به رابط برنامه استفاده می‌شود.</span>
+      </div>
+      <button class="btn primary" type="submit">ورود</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

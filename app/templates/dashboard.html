@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, time_tag, empty_state, approval_status %}
+{% block title %}نمای کلی — {{ app_name }}{% endblock %}
+{% block page_title %}نمای کلی{% endblock %}
+{% block page_sub %}
+  وضعیت اتصال، گردش‌کارهای در جریان و تأییدهای منتظر تصمیم.
+{% endblock %}
+{% block actions %}
+  <a class="btn primary" href="/diagnose">شروع عیب‌یابی</a>
+{% endblock %}
+
+{% block content %}
+<div class="stack">
+
+  {% if demo_mode %}
+  <div class="card" style="border-color:#bfe3dd;background:linear-gradient(180deg,#f2fbf9,#ffffff)">
+    <div class="card-body">
+      <div class="spread" style="align-items:flex-start">
+        <div>
+          <h2 style="margin-bottom:4px">اجرای سناریوی دمو</h2>
+          <p class="muted small" style="margin:0">
+            یک حادثه واقعی (خطای 500) را از ابتدا اجرا می‌کند: جمع‌آوری شواهد ← تحلیل ← تأیید ← اصلاح ← تست ←
+            انتظار تأیید انتشار ← انتشار شبیه‌سازی‌شده ← بررسی سلامت.
+          </p>
+        </div>
+        <span class="badge demo"><span class="dot amber"></span> بدون توکن و بدون LLM</span>
+      </div>
+      <div class="grid cols-3" style="margin-top:14px;align-items:end">
+        <div class="field" style="grid-column: span 2">
+          <label for="demo-scenario">سناریو</label>
+          <select id="demo-scenario">
+            {% for s in scenarios %}
+              <option value="{{ s.key }}" {{ 'selected' if s.active else '' }}>
+                {{ s.label_fa }} — {{ s.project }}
+              </option>
+            {% endfor %}
+          </select>
+          <span class="help">سناریوی «خطای 500 جنگو» برای نمایش پنج‌دقیقه‌ای پیشنهاد می‌شود.</span>
+        </div>
+        <div>
+          <button class="btn primary block" id="btn-run-demo" type="button">اجرای سناریوی دمو</button>
+        </div>
+      </div>
+      <div id="demo-message" class="small" style="margin-top:8px"></div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="grid cols-4">
+    <div class="card stat">
+      <div class="label">پروژه‌های قابل‌مشاهده</div>
+      <div class="value">{{ projects|length }}</div>
+      <div class="hint">{{ "شبیه‌سازی‌شده" if simulated else "از API لیارا" }}</div>
+    </div>
+    <div class="card stat">
+      <div class="label">گردش‌کارهای در جریان</div>
+      <div class="value">{{ stats.workflows_by_status.get('running', 0) + stats.workflows_by_status.get('waiting_for_approval', 0) + stats.workflows_by_status.get('testing', 0) + stats.workflows_by_status.get('deploying', 0) + stats.workflows_by_status.get('verifying', 0) }}</div>
+      <div class="hint">مجموع کل: {{ stats.workflows_total }}</div>
+    </div>
+    <div class="card stat">
+      <div class="label">تأییدهای منتظر تصمیم</div>
+      <div class="value" style="color:{{ '#b45309' if stats.pending_approvals else 'inherit' }}">{{ stats.pending_approvals }}</div>
+      <div class="hint"><a href="/approvals">مشاهده تأییدها</a></div>
+    </div>
+    <div class="card stat">
+      <div class="label">وضعیت اتصال</div>
+      <div class="value" style="font-size:16px;margin-top:6px">
+        {% if simulated %}
+          <span class="badge demo">DEMO</span>
+        {% else %}
+          <span class="badge {{ 'live' if health.status == 'ok' else 'red' }}">{{ 'متصل' if health.status == 'ok' else 'نامشخص' }}</span>
+        {% endif %}
+      </div>
+      <div class="hint">DB: {{ health.database }} · {{ health.coding_agent }}</div>
+    </div>
+  </div>
+
+  {% if projects_error or readiness.blockers or readiness.warnings %}
+  <div class="card">
+    <div class="card-head"><h2>هشدارها و آمادگی اجرا</h2>
+      <a class="small" href="/settings">تنظیمات</a>
+    </div>
+    <div class="card-body stack">
+      {% if projects_error %}
+        <div class="alert error">دریافت پروژه‌ها ناموفق بود: {{ projects_error }}</div>
+      {% endif %}
+      {% if demo_mode %}
+        <div class="alert info">
+          حالت DEMO فعال است: هیچ درخواستی به <span class="ltr">api.liara.ir</span> ارسال نمی‌شود و
+          تمام نتایج با نشان «شبیه‌سازی‌شده» ثبت می‌شوند.
+        </div>
+      {% elif readiness.blockers %}
+        <div class="alert error">
+          اجرای Live آماده نیست:
+          <ul>{% for item in readiness.blockers %}<li>{{ item }}</li>{% endfor %}</ul>
+        </div>
+      {% endif %}
+      {% if readiness.warnings %}
+        <div class="alert warn">
+          محدودیت‌های فعال:
+          <ul>{% for item in readiness.warnings %}<li>{{ item }}</li>{% endfor %}</ul>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="grid cols-2">
+    <div class="card">
+      <div class="card-head">
+        <h2>تأییدهای منتظر</h2>
+        <a class="small" href="/approvals">همه</a>
+      </div>
+      <div class="card-body tight">
+        {% if pending %}
+          <table class="table">
+            <thead><tr><th>اقدام</th><th>پروژه</th><th>ریسک</th><th></th></tr></thead>
+            <tbody>
+            {% for a in pending %}
+              <tr>
+                <td><div>{{ a.title }}</div><div class="tiny muted">{{ a.stage }} · {{ a.id|short_id }}</div></td>
+                <td class="ltr small">{{ a.project }}</td>
+                <td><span class="badge {{ 'red' if a.risk_level == 'high' else 'amber' }}">{{ a.risk_level }}</span></td>
+                <td><a class="btn sm" href="/workflows/{{ a.workflow_id }}">بررسی</a></td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          {{ empty_state("تأییدی در انتظار تصمیم نیست.") }}
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>آخرین گردش‌کارها</h2>
+        <a class="small" href="/workflows">همه</a>
+      </div>
+      <div class="card-body tight">
+        {% if recent %}
+          <table class="table">
+            <thead><tr><th>پروژه</th><th>وضعیت</th><th>زمان</th></tr></thead>
+            <tbody>
+            {% for w in recent %}
+              <tr>
+                <td><a class="ltr" href="/workflows/{{ w.workflow_id }}">{{ w.project or '—' }}</a>
+                    <div class="tiny muted">{{ w.request[:60] }}{% if w.request|length > 60 %}…{% endif %}</div></td>
+                <td>{{ status_badge(w.status) }}</td>
+                <td class="tiny">{{ time_tag(w.created_at) }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          {{ empty_state("هنوز گردش‌کاری اجرا نشده است.", "با دکمه «اجرای سناریوی دمو» شروع کن.") }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="grid cols-2">
+    <div class="card">
+      <div class="card-head"><h2>پروژه‌های نمونه</h2><a class="small" href="/projects">جزئیات</a></div>
+      <div class="card-body tight">
+        {% if projects %}
+        <table class="table">
+          <thead><tr><th>نام</th><th>پلتفرم</th><th>وضعیت</th><th>پلن</th></tr></thead>
+          <tbody>
+          {% for p in projects %}
+            <tr>
+              <td class="ltr"><a href="/diagnose?project={{ p.name }}">{{ p.name }}</a></td>
+              <td class="ltr small">{{ p.type }}</td>
+              <td><span class="badge {{ 'green' if p.status == 'running' else 'gray' }}">{{ p.status }}</span></td>
+              <td class="ltr small">{{ p.plan_id }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+          {{ empty_state("پروژه‌ای برای نمایش نیست.", projects_error or "") }}
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>آخرین انتشارها</h2></div>
+      <div class="card-body tight">
+        {% if deployments %}
+        <table class="table">
+          <thead><tr><th>پروژه</th><th>Release</th><th>وضعیت</th></tr></thead>
+          <tbody>
+          {% for d in deployments %}
+            <tr>
+              <td class="ltr small">{{ d.project }}</td>
+              <td class="ltr tiny">{{ d.release_id or '—' }}</td>
+              <td>
+                <span class="badge {{ 'teal' if d.stage == 'deployed' else 'gray' }}">{{ d.stage }}</span>
+                {% if d.simulated %}<span class="badge amber">شبیه‌سازی</span>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        <div class="card-foot tiny muted">
+          آخرین بررسی سلامت:
+          {% if stats.last_verification %}
+            {{ stats.last_verification.get('status', '—') }}
+            {% if stats.last_verification.get('simulated') %}(شبیه‌سازی‌شده){% endif %}
+          {% else %}ثبت نشده{% endif %}
+        </div>
+        {% else %}
+          {{ empty_state("انتشاری ثبت نشده است.") }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>وضعیت اجزا</h2><a class="small" href="/settings">تست اتصال</a></div>
+    <div class="card-body">
+      <div class="grid cols-3">
+        <div>
+          <div class="tiny muted">Liara</div>
+          <div class="small">{{ adapter.mode }} {% if adapter.simulated %}(شبیه‌سازی){% endif %}</div>
+        </div>
+        <div>
+          <div class="tiny muted">ایجنت کدنویسی</div>
+          <div class="small">{{ coding_agent.provider }} — {{ coding_agent.reason }}</div>
+        </div>
+        <div>
+          <div class="tiny muted">MCP</div>
+          <div class="small"><a href="/mcp">راهنمای اتصال Claude Code و Codex</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  LP.initDemo();
+</script>
+{% endblock %}

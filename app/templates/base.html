@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b8f83'/%3E%3Ctext x='16' y='22' font-size='16' text-anchor='middle' fill='white' font-family='sans-serif'%3EL%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">LP</div>
+      <div>
+        <div class="brand-name">LiaraPilot</div>
+        <div class="brand-sub">AI Infrastructure Engineer</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <a href="/" class="{{ 'active' if page == 'dashboard' else '' }}"><span class="icon">◧</span> نمای کلی</a>
+      <a href="/projects" class="{{ 'active' if page == 'projects' else '' }}"><span class="icon">▤</span> پروژه‌ها</a>
+      <a href="/diagnose" class="{{ 'active' if page == 'diagnose' else '' }}"><span class="icon">◎</span> عیب‌یابی</a>
+      <a href="/workflows" class="{{ 'active' if page == 'workflows' else '' }}"><span class="icon">≡</span> گردش‌کارها</a>
+      <a href="/approvals" class="{{ 'active' if page == 'approvals' else '' }}"><span class="icon">✓</span> تأییدها</a>
+      <div class="nav-sep"></div>
+      <a href="/settings" class="{{ 'active' if page == 'settings' else '' }}"><span class="icon">⚙</span> تنظیمات</a>
+      <a href="/mcp" class="{{ 'active' if page == 'mcp' else '' }}"><span class="icon">⌘</span> اتصال MCP</a>
+      <a href="/docs" target="_blank" rel="noopener"><span class="icon">↗</span> OpenAPI</a>
+    </nav>
+
+    <div class="sidebar-foot">
+      {% if simulated %}
+        <span class="mode-chip"><span class="dot amber"></span> DEMO / SIMULATED</span>
+        <span>داده‌ها و عملیات شبیه‌سازی شده‌اند.</span>
+      {% else %}
+        <span class="mode-chip"><span class="dot"></span> LIVE — Liara API</span>
+        <span>عملیات تغییردهنده فقط با مجوز اجرا می‌شوند.</span>
+      {% endif %}
+      {% if auth_enabled %}
+        <a href="/logout" style="color:#94a3b8">خروج از نشست</a>
+      {% endif %}
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <h1>{% block page_title %}{% endblock %}</h1>
+        <div class="sub">{% block page_sub %}{% endblock %}</div>
+      </div>
+      <div class="topbar-actions">
+        {% block actions %}{% endblock %}
+        {% if simulated %}
+          <span class="badge demo"><span class="dot amber"></span> DEMO / SIMULATED</span>
+        {% else %}
+          <span class="badge live"><span class="dot"></span> LIVE</span>
+        {% endif %}
+      </div>
+    </header>
+
+    {% block content %}{% endblock %}
+
+    <footer class="tiny muted" style="margin-top:26px">
+      LiaraPilot MVP — داده‌ها از {{ "محیط شبیه‌سازی‌شده" if simulated else "API لیارا" }} می‌آیند.
+      هر عملیات حساس نیازمند تأیید سروری است.
+    </footer>
+  </main>
+</div>
+<script src="/static/app.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

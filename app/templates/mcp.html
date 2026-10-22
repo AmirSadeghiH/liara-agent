@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}اتصال MCP — {{ app_name }}{% endblock %}
+{% block page_title %}اتصال Claude Code و Codex{% endblock %}
+{% block page_sub %}سرور MCP روی <span class="ltr">stdio</span> اجرا می‌شود و از همان سرویس‌های LiaraPilot استفاده می‌کند.{% endblock %}
+
+{% block content %}
+<div class="stack">
+  <div class="alert info small">
+    Transport اصلی <strong>stdio</strong> است. در این حالت <strong>stdout مخصوص پروتکل MCP</strong> است و
+    همه لاگ‌ها به <span class="ltr">stderr</span> می‌روند. اجرای سرور به توکن لیارا یا LLM وابسته نیست؛ در حالت
+    DEMO همه ابزارهای خواندنی از آداپتور شبیه‌ساز پاسخ می‌دهند.
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Claude Code</h2><span class="badge teal">stdio</span></div>
+    <div class="card-body stack">
+      <div class="small">روش اول: افزودن سرور با CLI (از ریشه پروژه اجرا شود).</div>
+      <div class="copy-row">
+        <pre class="code" id="cmd-claude">claude mcp add liarapilot -- python -m app.mcp.server</pre>
+        <button class="btn" type="button" data-copy="cmd-claude">کپی</button>
+      </div>
+      <div class="small">روش دوم: فایل <span class="ltr">.mcp.json</span> در ریشه پروژه.</div>
+      <pre class="code">{
+  "mcpServers": {
+    "liarapilot": {
+      "command": "python",
+      "args": ["-m", "app.mcp.server"],
+      "env": { "DEMO_MODE": "true" }
+    }
+  }
+}</pre>
+      <div class="tiny muted">سپس با <span class="ltr">claude mcp list</span> اتصال را بررسی کنید.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>Codex</h2><span class="badge teal">stdio</span></div>
+    <div class="card-body stack">
+      <div class="small">فایل <span class="ltr">~/.codex/config.toml</span>:</div>
+      <pre class="code">[mcp_servers.liarapilot]
+command = "python"
+args = ["-m", "app.mcp.server"]
+env = { DEMO_MODE = "true" }</pre>
+      <div class="small">یا افزودن سریع با CLI:</div>
+      <div class="copy-row">
+        <pre class="code" id="cmd-codex">codex mcp add liarapilot -- python -m app.mcp.server</pre>
+        <button class="btn" type="button" data-copy="cmd-codex">کپی</button>
+      </div>
+      <div class="tiny muted">
+        در ویندوز اگر <span class="ltr">python</span> در PATH نیست، مسیر کامل
+        <span class="ltr">.venv\Scripts\python.exe</span> را بگذارید. صحت پرچم‌ها را با
+        <span class="ltr">codex mcp add --help</span> بررسی کنید.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>ابزارهای MCP</h2>
+      <span class="badge {{ 'amber' if mode == 'demo' else 'live' }}">{{ 'DEMO' if mode == 'demo' else 'LIVE' }}</span>
+    </div>
+    <div class="card-body tight">
+      <table class="table">
+        <thead><tr><th>ابزار</th><th>نوع</th><th>ریسک</th><th>توضیح</th></tr></thead>
+        <tbody>
+          <tr><td class="ltr">liara_list_projects</td><td>خواندنی</td><td><span class="badge green">کم</span></td><td class="small">فهرست پروژه‌ها</td></tr>
+          <tr><td class="ltr">liara_get_project_status</td><td>خواندنی</td><td><span class="badge green">کم</span></td><td class="small">وضعیت پروژه (بدون مقادیر env)</td></tr>
+          <tr><td class="ltr">liara_get_logs</td><td>خواندنی</td><td><span class="badge green">کم</span></td><td class="small">لاگ‌های پاک‌سازی‌شده</td></tr>
+          <tr><td class="ltr">liara_get_cpu_metrics</td><td>خواندنی</td><td><span class="badge green">کم</span></td><td class="small">گزارش CPU</td></tr>
+          <tr><td class="ltr">liara_get_memory_metrics</td><td>خواندنی</td><td><span class="badge green">کم</span></td><td class="small">گزارش RAM</td></tr>
+          <tr><td class="ltr">liara_get_release_history</td><td>خواندنی</td><td><span class="badge green">کم</span></td><td class="small">تاریخچه انتشارهای مستند</td></tr>
+          <tr><td class="ltr">liara_diagnose_project</td><td>خواندنی</td><td><span class="badge green">کم</span></td><td class="small">تشخیص ساختاریافته با شواهد</td></tr>
+          <tr><td class="ltr">liara_prepare_repair</td><td>آماده‌سازی</td><td><span class="badge amber">متوسط</span></td><td class="small">ساخت برنامه اصلاح بدون تغییر Production</td></tr>
+          <tr><td class="ltr">liara_prepare_deployment</td><td>آماده‌سازی</td><td><span class="badge amber">متوسط</span></td><td class="small">بسته‌بندی و ارسال سورس (نیازمند سیاست نوشتن)</td></tr>
+          <tr><td class="ltr">liara_get_workflow_status</td><td>خواندنی</td><td><span class="badge green">کم</span></td><td class="small">وضعیت گردش‌کار</td></tr>
+          <tr><td class="ltr">liara_request_approval</td><td>حساس</td><td><span class="badge red">پرریسک</span></td><td class="small">ایجاد درخواست تأیید سروری</td></tr>
+          <tr><td class="ltr">liara_deploy_approved_source</td><td>حساس</td><td><span class="badge red">پرریسک</span></td><td class="small">ساخت Release فقط با approval_id معتبر</td></tr>
+          <tr><td class="ltr">liara_verify_deployment</td><td>حساس</td><td><span class="badge amber">متوسط</span></td><td class="small">بررسی سلامت و لاگ‌های پس از انتشار</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-foot tiny muted">
+      ابزارهای تغییردهنده هرگز با یک boolean از سمت مدل مجاز نمی‌شوند: شناسه تأیید باید در سرور وجود داشته باشد،
+      منقضی نشده باشد، پارامترها اثر انگشت یکسان داشته باشند و قبلاً مصرف نشده باشد.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>اجرای دستی سرور</h2></div>
+    <div class="card-body">
+      <div class="copy-row">
+        <pre class="code" id="cmd-run">python -m app.mcp.server</pre>
+        <button class="btn" type="button" data-copy="cmd-run">کپی</button>
+      </div>
+      <div class="tiny muted" style="margin-top:8px">
+        برای بررسی سریع سلامتی: <span class="ltr">python -m app.mcp.server --selftest</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>LP.initCopyButtons();</script>
+{% endblock %}

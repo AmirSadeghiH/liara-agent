@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, approval_status, risk_badge, confidence_badge, time_tag, empty_state %}
+{% block title %}گردش‌کار {{ workflow.workflow_id }} — {{ app_name }}{% endblock %}
+{% block page_title %}گردش‌کار {{ workflow.workflow_id }}{% endblock %}
+{% block page_sub %}
+  {{ workflow.project or '—' }} ·
+  <span id="wf-status-label">{{ workflow.status }}</span>
+  {% if workflow.simulated %}<span class="badge demo">شبیه‌سازی‌شده</span>{% endif %}
+{% endblock %}
+{% block actions %}
+  <a class="btn" href="/workflows">بازگشت</a>
+  <button class="btn" type="button" id="btn-wf-refresh">به‌روزرسانی</button>
+  {% if workflow.status not in ['completed', 'failed', 'cancelled'] %}
+    <button class="btn danger" type="button" id="btn-wf-cancel">لغو گردش‌کار</button>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="stack" id="workflow-root"
+     data-workflow-id="{{ workflow.workflow_id }}"
+     data-status="{{ workflow.status }}"
+     data-simulated="{{ 'true' if workflow.simulated else 'false' }}">
+
+  <div class="card">
+    <div class="card-head">
+      <div class="row">
+        <span id="wf-status-badge">{{ status_badge(workflow.status) }}</span>
+        <span class="chip ltr">{{ workflow.current_step or '—' }}</span>
+        <span class="chip">تلاش <span id="wf-attempt">{{ workflow.attempt }}</span>/{{ workflow.max_attempts }}</span>
+      </div>
+      <div class="row tiny muted">
+        <span>ایجاد: {{ time_tag(workflow.created_at) }}</span>
+        <span>آخرین تغییر: {{ time_tag(workflow.updated_at) }}</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="small"><strong>درخواست:</strong> {{ workflow.request }}</div>
+      {% if workflow.error %}
+        <div class="alert error" style="margin-top:10px">خطا: {{ workflow.error }}</div>
+      {% endif %}
+      {% if workflow.stop_reason %}
+        <div class="alert {{ 'warn' if workflow.status in ['cancelled','needs_human'] else 'info' }}" style="margin-top:10px">
+          علت توقف / نتیجه: <span class="ltr">{{ workflow.stop_reason }}</span>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card" id="approval-card" style="{% if not pending %}display:none{% endif %}">
+    <div class="card-head" style="background:#fffdf7">
+      <h2>درخواست تأیید — عملیات حساس</h2>
+      <div class="row">
+        {% if pending %}{{ risk_badge(pending.risk_level) }}{{ approval_status(pending.status) }}{% endif %}
+      </div>
+    </div>
+    <div class="card-body" id="approval-body">
+      {% if pending %}
+        <div class="alert warn">
+          این عملیات بدون تأیید صریح اجرا نمی‌شود. تأیید به همین پارامترها و همین شناسه گره خورده است و
+          پس از انقضا یا تغییر پارامترها بی‌اعتبار می‌شود.
+        </div>
+        <div class="grid cols-2" style="margin-top:12px">
+          <div>
+            <dl class="kv">
+              <dt>اقدام</dt><dd class="ltr">{{ pending.action }}</dd>
+              <dt>مرحله</dt><dd class="ltr">{{ pending.stage }}</dd>
+              <dt>پروژه</dt><dd class="ltr">{{ pending.project }}</dd>
+              <dt>شناسه تأیید</dt><dd class="ltr tiny">{{ pending.id }}</dd>
+              <dt>انقضا</dt><dd>{{ time_tag(pending.expires_at) }}</dd>
+              <dt>حالت</dt><dd>{{ 'شبیه‌سازی‌شده' if pending.simulated else 'واقعی' }}</dd>
+            </dl>
+            <p class="small" style="margin-top:10px"><strong>دلیل:</strong> {{ pending.reason }}</p>
+          </div>
+          <div>
+            <div class="small muted" style="margin-bottom:6px">پارامترهای دقیق عملیات</div>
+            <pre class="code">{{ pending.params | tojson(indent=2) }}</pre>
+          </div>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <button class="btn primary" type="button" data-approval-id="{{ pending.id }}" data-decision="approved">تأیید و ادامه</button>
+          <button class="btn danger" type="button" data-approval-id="{{ pending.id }}" data-decision="rejected">رد عملیات</button>
+          <span class="tiny muted">تصمیم در سرور ثبت و اعتبارسنجی می‌شود؛ UI به‌تنهایی موفقیت اعلام نمی‌کند.</span>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="grid cols-2">
+    <div class="card">
+      <div class="card-head"><h2>مراحل اجرا</h2><span class="tiny muted">به‌روزرسانی خودکار</span></div>
+      <div class="card-body">
+        <div class="steps" id="wf-timeline">
+          {% for e in workflow.events if e.step %}
+            <div class="step {{ 'done' if e.status == 'completed' else ('active' if e.status == 'running' else 'failed') }}">
+              <div class="bullet">{{ '✓' if e.status == 'completed' else ('•' if e.status == 'running' else '!') }}</div>
+              <div>
+                <div class="title">{{ e.data.get('label_fa', e.step) if e.data else e.step }}</div>
+                <div class="desc">{{ e.message or '' }}</div>
+              </div>
+              <div class="time">{{ time_tag(e.created_at) }}</div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>خلاصه تحلیل</h2>
+        {% if workflow.diagnosis %}{{ confidence_badge(workflow.diagnosis.get('confidence')) }}{% endif %}
+      </div>
+      <div class="card-body">
+        {% if workflow.diagnosis %}
+          {% set d = workflow.diagnosis %}
+          <div class="small" style="display:grid;gap:8px">
+            <div><strong>مشاهده:</strong> {{ d.get('observation') }}</div>
+            <div><strong>علت محتمل:</strong> {{ d.get('probable_cause') }}</div>
+            <div><strong>اقدام پیشنهادی:</strong> {{ d.get('recommended_action') }}</div>
+            <div><strong>منابع:</strong> {{ d.get('resource_assessment') }}</div>
+            {% if d.get('unavailable_sources') %}
+              <div class="alert warn tiny">داده‌های در دسترس نبوده: {{ d.get('unavailable_sources') | join(' ، ') }}</div>
+            {% endif %}
+            <div class="tiny muted">موتور تحلیل: <span class="ltr">{{ d.get('engine') }}</span></div>
+          </div>
+          {% if d.get('alternatives') %}
+            <div class="small" style="margin-top:10px"><strong>علت‌های جایگزین:</strong>
+              <ul style="margin:4px 0 0;padding-inline-start:18px">
+                {% for alt in d.get('alternatives') %}<li>{{ alt }}</li>{% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+        {% else %}
+          {{ empty_state("هنوز تحلیلی ثبت نشده است.") }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if workflow.diagnosis %}
+  <div class="grid cols-2">
+    <div class="card">
+      <div class="card-head"><h2>شواهد و استدلال</h2><span class="chip">{{ evidence_rows|length }} رکورد</span></div>
+      <div class="card-body stack">
+        {% for statement in workflow.diagnosis.get('evidence', []) %}
+          <div class="evidence-item"><div class="summary">{{ statement }}</div></div>
+        {% endfor %}
+        {% if not workflow.diagnosis.get('evidence') %}
+          <div class="muted small">شاهد مستقیمی ثبت نشده است.</div>
+        {% endif %}
+        <details>
+          <summary>نمایش منابع خام (پاک‌سازی‌شده)</summary>
+          <div class="stack">
+            {% for ev in evidence_rows %}
+              <details class="evidence-item">
+                <summary>{{ ev.kind }} — <span class="ltr tiny">{{ ev.id }}</span></summary>
+                <div class="tiny muted" style="margin:6px 0">{{ ev.summary }}</div>
+                <div class="tiny muted ltr" style="margin-bottom:6px">{{ ev.source }}</div>
+                <pre class="code">{{ (ev.payload | tojson(indent=2))[:6000] }}</pre>
+              </details>
+            {% endfor %}
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>ریسک و روش راستی‌آزمایی</h2></div>
+      <div class="card-body small" style="display:grid;gap:10px">
+        <div><strong>ریسک اقدام:</strong> {{ workflow.diagnosis.get('risk') }}</div>
+        <div><strong>روش بررسی نتیجه:</strong> {{ workflow.diagnosis.get('verification_method') }}</div>
+        {% if workflow.evidence_summary %}
+        {% endif %}
+        <div class="alert info tiny">
+          محتوای لاگ به‌عنوان داده غیرقابل‌اعتماد پردازش می‌شود؛ دستورهای داخل لاگ اجرا نمی‌شوند.
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if workflow.repair_plan or workflow.coding_agent_runs %}
+  <div class="card">
+    <div class="card-head">
+      <h2>اصلاح و تست</h2>
+      <div class="row">
+        {% if workflow.branch %}<span class="chip ltr">{{ workflow.branch }}</span>{% endif %}
+        {% if workflow.test_results %}
+          <span class="badge {{ 'green' if workflow.test_results.get('status') == 'passed' else 'red' }}">
+            تست: {{ workflow.test_results.get('status') }}
+          </span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card-body stack">
+      {% if workflow.repair_plan %}
+        <div class="small"><strong>برنامه اصلاح:</strong> {{ workflow.repair_plan.get('summary_fa') }}</div>
+        <div class="row tiny">
+          <span class="chip">علت: <span class="ltr">{{ workflow.repair_plan.get('cause_key') }}</span></span>
+          {% for f in workflow.repair_plan.get('files', []) %}<span class="chip ltr">{{ f }}</span>{% endfor %}
+        </div>
+      {% endif %}
+
+      {% for run in workflow.coding_agent_runs %}
+        <div class="evidence-item">
+          <div class="head">
+            <span class="ltr">{{ run.provider }} · {{ run.status }}</span>
+            <span>
+              {% if run.simulated %}<span class="badge amber">SIMULATED PATCH</span>{% else %}<span class="badge teal">REAL</span>{% endif %}
+              <span class="tiny muted">{{ run.duration_ms }}ms</span>
+            </span>
+          </div>
+          {% if run.error %}<div class="alert error tiny" style="margin-top:6px">{{ run.error }}</div>{% endif %}
+          {% if run.files_changed %}
+            <div class="tiny" style="margin-top:6px">فایل‌های تغییرکرده:</div>
+            <div class="row tiny" style="margin-top:2px">
+              {% for f in run.files_changed %}<span class="chip ltr">{{ f }}</span>{% endfor %}
+            </div>
+          {% endif %}
+          {% if run.test_results %}
+            <div class="tiny muted" style="margin-top:8px">
+              تست با <span class="ltr">{{ run.test_results.get('runner') }}</span> —
+              exit={{ run.test_results.get('exit_code') }}
+            </div>
+            <pre class="logs" style="margin-top:6px">{{ (run.test_results.get('output_tail') or '')[:3000] }}</pre>
+          {% endif %}
+        </div>
+      {% endfor %}
+
+      {% if workflow.test_results %}
+        <details>
+          <summary>خروجی کامل تست‌ها</summary>
+          <div class="tiny muted" style="margin-bottom:6px">
+            <span class="ltr">{{ workflow.test_results.get('command') }}</span> ·
+            exit={{ workflow.test_results.get('exit_code') }} ·
+            {{ workflow.test_results.get('duration_ms') }}ms
+            {% if workflow.test_results.get('simulated_patch') %}· اجرا روی پچ شبیه‌سازی‌شده{% endif %}
+          </div>
+          <pre class="logs">{{ (workflow.test_results.get('output_tail') or '')[:6000] }}</pre>
+        </details>
+      {% endif %}
+
+      {% for run in workflow.coding_agent_runs if run.diff %}
+        <details>
+          <summary>نمایش Diff</summary>
+          <pre class="code">{{ run.diff[:12000] }}</pre>
+        </details>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if workflow.deployment or workflow.verification %}
+  <div class="grid cols-2">
+    <div class="card">
+      <div class="card-head">
+        <h2>انتشار</h2>
+        {% if workflow.deployment and workflow.deployment.get('simulated') %}
+          <span class="badge amber">SIMULATED RELEASE</span>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        {% if workflow.deployment %}
+          <dl class="kv">
+            <dt>sourceID</dt><dd class="ltr tiny">{{ workflow.deployment.get('source_id') or '—' }}</dd>
+            <dt>releaseID</dt><dd class="ltr tiny">{{ workflow.deployment.get('release_id') or '—' }}</dd>
+            <dt>وضعیت Release</dt><dd class="ltr">{{ workflow.deployment.get('release_state') or '—' }}</dd>
+            <dt>پورت</dt><dd class="ltr">{{ workflow.deployment.get('port') or '—' }}</dd>
+            <dt>پلتفرم</dt><dd class="ltr">{{ workflow.deployment.get('project_type') or '—' }}</dd>
+            {% if workflow.deployment.get('package') %}
+              <dt>بسته سورس</dt>
+              <dd class="ltr tiny">
+                {{ workflow.deployment.package.get('file_count') }} فایل ·
+                {{ workflow.deployment.package.get('size_bytes') }} bytes
+              </dd>
+            {% endif %}
+          </dl>
+        {% else %}
+          {{ empty_state("انتشاری انجام نشده است.") }}
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>بررسی سلامت</h2>
+        {% if workflow.verification %}
+          {% set v = workflow.verification %}
+          <span class="badge {{ 'green' if v.get('status') == 'verified' else ('red' if v.get('status') == 'failed' else 'amber') }}">
+            {{ v.get('status') }}
+          </span>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        {% if workflow.verification %}
+          {% set v = workflow.verification %}
+          <dl class="kv">
+            <dt>کد وضعیت</dt><dd class="ltr">{{ v.get('observed_status') or '—' }} (انتظار {{ v.get('expected_status') }})</dd>
+            <dt>آدرس</dt><dd class="ltr tiny">{{ v.get('url') or '—' }}</dd>
+            <dt>تلاش‌ها</dt><dd>{{ v.get('attempts') }}</dd>
+            <dt>حالت</dt><dd>{{ 'شبیه‌سازی‌شده' if v.get('simulated') else 'واقعی' }}</dd>
+          </dl>
+          {% if v.get('reason') %}<div class="alert warn tiny" style="margin-top:10px">{{ v.get('reason') }}</div>{% endif %}
+          {% if v.get('log_evidence') %}
+            <div class="tiny muted" style="margin-top:10px">
+              لاگ‌های پس از انتشار: {{ v.log_evidence.get('checked') }} خط،
+              {{ v.log_evidence.get('errors') }} خطا
+            </div>
+          {% endif %}
+        {% else %}
+          {{ empty_state("بررسی سلامت انجام نشده است.") }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if workflow.final_report %}
+  <div class="card">
+    <div class="card-head">
+      <h2>گزارش نهایی</h2>
+      <div class="row">
+        <span class="badge {{ 'green' if workflow.final_report.get('outcome') == 'completed' else ('red' if workflow.final_report.get('outcome') == 'failed' else 'amber') }}">
+          {{ workflow.final_report.get('outcome') }}
+        </span>
+        {% if workflow.final_report.get('simulated') %}<span class="badge demo">شبیه‌سازی‌شده</span>{% endif %}
+      </div>
+    </div>
+    <div class="card-body">
+      {% set r = workflow.final_report %}
+      <div class="grid cols-2 small">
+        <div style="display:grid;gap:8px">
+          <div><strong>مشکل اولیه:</strong> {{ r.get('problem', {}).get('request') }}</div>
+          <div><strong>علت محتمل:</strong> {{ r.get('diagnosis', {}).get('probable_cause') }}</div>
+          <div><strong>تغییر پیشنهادی/اعمال‌شده:</strong> {{ r.get('change', {}).get('summary') if r.get('change') else '—' }}</div>
+          <div><strong>نتیجه تست:</strong> {{ r.get('tests', {}).get('status') if r.get('tests') else '—' }}</div>
+        </div>
+        <div style="display:grid;gap:8px">
+          <div><strong>Release:</strong> <span class="ltr">{{ r.get('deployment', {}).get('release_id') if r.get('deployment') else '—' }}</span></div>
+          <div><strong>بررسی سلامت:</strong> {{ r.get('verification', {}).get('status') if r.get('verification') else '—' }}</div>
+          <div><strong>تأییدها:</strong> اصلاح={{ r.get('human_actions', {}).get('repair_approval') }} ·
+            انتشار={{ r.get('human_actions', {}).get('deployment_approval') }}</div>
+          <div><strong>علت توقف:</strong> <span class="ltr">{{ r.get('stop_reason') or '—' }}</span></div>
+        </div>
+      </div>
+      {% if r.get('remaining_limitations') %}
+        <div class="alert warn small" style="margin-top:12px">
+          محدودیت‌های باقی‌مانده:
+          <ul>{% for item in r.get('remaining_limitations') %}<li>{{ item }}</li>{% endfor %}</ul>
+        </div>
+      {% endif %}
+      <details style="margin-top:10px">
+        <summary>JSON کامل گزارش</summary>
+        <pre class="code">{{ r | tojson(indent=2) }}</pre>
+      </details>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-head"><h2>تاریخچه رویدادها</h2><span class="chip">{{ workflow.events|length }}</span></div>
+    <div class="card-body tight">
+      <table class="table">
+        <thead><tr><th>مرحله</th><th>وضعیت</th><th>پیام</th><th>زمان</th></tr></thead>
+        <tbody>
+          {% for e in workflow.events|reverse %}
+            <tr>
+              <td class="ltr tiny">{{ e.step or '—' }}</td>
+              <td>{{ status_badge('running' if e.status == 'running' else ('completed' if e.status == 'completed' else e.status)) }}</td>
+              <td class="small">{{ e.message or '' }}</td>
+              <td class="tiny">{{ time_tag(e.created_at) }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  LP.initWorkflowPage();
+</script>
+{% endblock %}
