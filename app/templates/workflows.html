@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, time_tag, empty_state %}
+{% from "_icons.html" import icon %}
+{% block title %}گردش‌کارها — {{ app_name }}{% endblock %}
+{% block page_title %}گردش‌کارها{% endblock %}
+{% block page_sub %}تاریخچه اجراها، وضعیت فعلی و علت توقف.{% endblock %}
+{% block actions %}
+  <a class="btn primary" href="/diagnose">{{ icon('play', 15) }} گردش‌کار جدید</a>
+{% endblock %}
+
+{% block content %}
+<div class="stack">
+  <div class="grid cols-3">
+    <div class="card stat">
+      <div class="stat-top">
+        <div class="label">کل گردش‌کارها</div>
+        <span class="stat-icon">{{ icon('workflows', 17) }}</span>
+      </div>
+      <div class="value">{{ workflows|length }}</div>
+      <div class="hint">{{ 'اجرای شبیه‌سازی‌شده' if simulated else 'اجرای Live' }}</div>
+    </div>
+    <div class="card stat">
+      <div class="stat-top">
+        <div class="label">منتظر تأیید</div>
+        <span class="stat-icon">{{ icon('approvals', 17) }}</span>
+      </div>
+      <div class="value">{{ workflows|selectattr('status', 'equalto', 'waiting_for_approval')|list|length }}</div>
+      <div class="hint"><a href="/approvals">صف تأییدها</a></div>
+    </div>
+    <div class="card stat">
+      <div class="stat-top">
+        <div class="label">تکمیل‌شده</div>
+        <span class="stat-icon">{{ icon('check', 17) }}</span>
+      </div>
+      <div class="value">{{ workflows|selectattr('status', 'equalto', 'completed')|list|length }}</div>
+      <div class="hint">با گزارش نهایی و بررسی سلامت</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>{{ icon('workflows', 16) }} فهرست اجراها</h2>
+      <span class="badge {{ 'amber' if simulated else 'live' }}">{{ 'DEMO' if simulated else 'LIVE' }}</span>
+    </div>
+    <div class="card-body tight">
+      {% if workflows %}
+      <table class="table">
+        <thead>
+          <tr><th>شناسه</th><th>پروژه</th><th>درخواست</th><th>وضعیت</th><th>مرحله</th><th>تلاش</th><th>آخرین تغییر</th></tr>
+        </thead>
+        <tbody>
+        {% for w in workflows %}
+          <tr>
+            <td class="ltr tiny"><a href="/workflows/{{ w.workflow_id }}">{{ w.workflow_id }}</a></td>
+            <td class="ltr small">{{ w.project or '—' }}</td>
+            <td class="small">{{ w.request[:70] }}{% if w.request|length > 70 %}…{% endif %}</td>
+            <td>{{ status_badge(w.status) }}{% if w.simulated %} <span class="badge gray">شبیه‌سازی</span>{% endif %}</td>
+            <td class="tiny muted ltr">{{ w.current_step or '—' }}</td>
+            <td class="num small">{{ w.attempt }}/{{ w.max_attempts }}</td>
+            <td class="tiny">{{ time_tag(w.updated_at) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        {{ empty_state("گردش‌کاری ثبت نشده است.", "از صفحه عیب‌یابی یا سناریوی دمو شروع کنید.") }}
+      {% endif %}
+    </div>
+    <div class="card-foot tiny muted">
+      وضعیت‌های ممکن: queued · running · waiting_for_approval · testing · deploying · verifying ·
+      completed · failed · cancelled · needs_human
+    </div>
+  </div>
+</div>
+{% endblock %}

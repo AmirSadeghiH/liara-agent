@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "liarapilot": {
+      "command": "python",
+      "args": ["-m", "app.mcp.server"],
+      "env": {
+        "DEMO_MODE": "true",
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}

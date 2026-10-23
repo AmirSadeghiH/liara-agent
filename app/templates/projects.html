@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% from "_macros.html" import time_tag, empty_state %}
+{% from "_icons.html" import icon %}
+{% block title %}پروژه‌ها — {{ app_name }}{% endblock %}
+{% block page_title %}پروژه‌ها{% endblock %}
+{% block page_sub %}فهرست پروژه‌های قابل‌مشاهده و وضعیت استقرار آن‌ها.{% endblock %}
+{% block actions %}<a class="btn" href="/diagnose">{{ icon('diagnose', 15) }} عیب‌یابی پروژه</a>{% endblock %}
+
+{% block content %}
+<div class="stack">
+  {% if error %}
+    <div class="alert error">دریافت پروژه‌ها ناموفق بود: {{ error }}</div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-head">
+      <h2>{{ icon('projects', 16) }} {{ projects|length }} پروژه</h2>
+      <span class="badge {{ 'amber' if simulated else 'live' }}">
+        {{ 'DEMO / شبیه‌سازی‌شده' if simulated else 'LIVE — Liara API' }}
+      </span>
+    </div>
+    <div class="card-body tight">
+      {% if projects %}
+      <table class="table">
+        <thead>
+          <tr><th>نام پروژه</th><th>پلتفرم</th><th>وضعیت</th><th>پلن</th><th>استقرار</th><th>ایجاد</th><th></th></tr>
+        </thead>
+        <tbody>
+        {% for p in projects %}
+          <tr>
+            <td class="ltr"><a href="/diagnose?project={{ p.name }}">{{ p.name }}</a></td>
+            <td class="ltr small">{{ p.type }}</td>
+            <td>
+              <span class="badge {{ 'green' if p.status == 'running' else 'gray' }}">
+                <span class="dot"></span>{{ p.status }}
+              </span>
+            </td>
+            <td class="ltr small">{{ p.plan_id }}</td>
+            <td>
+              {% if p.is_deployed %}<span class="badge teal">deployed</span>
+              {% else %}<span class="badge gray">بدون انتشار</span>{% endif %}
+            </td>
+            <td class="tiny">{{ time_tag(p.created_at) }}</td>
+            <td><a class="btn sm soft" href="/diagnose?project={{ p.name }}">عیب‌یابی</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        {{ empty_state("پروژه‌ای برای نمایش وجود ندارد.", "در حالت Live، وجود توکن و دسترسی حساب را بررسی کنید.") }}
+      {% endif %}
+    </div>
+    <div class="card-foot tiny muted">
+      مقادیر متغیرهای محیطی هرگز از API خوانده و نمایش داده نمی‌شوند؛ فقط نام کلیدها در صفحه پروژه نمایش داده می‌شود.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h2>{{ icon('shield', 16) }} سیاست عملیات تغییردهنده</h2></div>
+    <div class="card-body">
+      {% if allowed_write_projects %}
+        <p class="small">پروژه‌های مجاز برای عملیات تغییردهنده:</p>
+        <div class="row">{% for name in allowed_write_projects %}<span class="chip ltr">{{ name }}</span>{% endfor %}</div>
+      {% else %}
+        <div class="alert warn">
+          فهرست <span class="ltr">LIARA_DEPLOY_ALLOWED_PROJECTS</span> خالی است؛ همه عملیات تغییردهنده مسدود می‌شوند.
+          این تنظیم از UI قابل تغییر نیست و باید در فایل <span class="ltr">.env</span> اصلاح شود.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

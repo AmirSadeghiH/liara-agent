@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block body_class %}auth-page{% endblock %}
+{% block title %}ورود — {{ app_name }}{% endblock %}
+{% block page_title %}ورود{% endblock %}
+{% block page_sub %}این نمونه روی شبکه منتشر شده و احراز هویت برنامه فعال است.{% endblock %}
+
+{% block content %}
+<div class="auth-shell">
+  <div class="auth-brand">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 32 32" width="30" height="30" fill="none">
+        <path d="M7 24V8h4.2v12.6H25V24z" fill="currentColor"/>
+        <circle cx="25" cy="9.6" r="3" fill="currentColor" opacity=".85"/>
+      </svg>
+    </span>
+    <span class="brand-text">
+      <span class="brand-name">LiaraPilot</span>
+      <span class="brand-sub">AI Infrastructure Engineer</span>
+    </span>
+  </div>
+
+  <div class="auth-card">
+    <div class="card-head">
+      <h2>{{ icon('lock', 16) }} ورود به کنسول</h2>
+      <span class="badge teal">AUTH</span>
+    </div>
+    <div class="card-body">
+      {% if error %}<div class="alert error" style="margin-bottom:12px">{{ error }}</div>{% endif %}
+      <form class="form" method="post" action="/login">
+        <input type="hidden" name="next" value="{{ next }}">
+        <div class="field">
+          <label for="token">توکن دسترسی برنامه — APP_ACCESS_TOKEN</label>
+          <input type="password" id="token" name="token" autocomplete="current-password" required autofocus>
+          <span class="help">
+            این مقدار با <span class="ltr">LIARA_API_TOKEN</span> متفاوت است و فقط برای ورود به رابط برنامه استفاده می‌شود.
+          </span>
+        </div>
+        <button class="btn primary block" type="submit">{{ icon('arrow-left', 16) }} ورود</button>
+      </form>
+    </div>
+    <div class="card-foot tiny muted">
+      دسترسی فقط روی شبکه محافظت‌شده فعال است؛ کوکی نشست امضاشده و HttpOnly است.
+    </div>
+  </div>
+
+  <div class="auth-foot">LiaraPilot MVP · داده‌های دمو شبیه‌سازی‌شده‌اند</div>
+</div>
+{% endblock %}

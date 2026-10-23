@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}خطا — {{ app_name }}{% endblock %}
+{% block page_title %}خطا{% endblock %}
+{% block page_sub %}درخواست قابل انجام نبود.{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:680px;margin:26px auto">
+  <div class="card-head">
+    <h2>{{ icon('alert', 17) }} {{ error.code }}</h2>
+    <span class="badge red">ERROR</span>
+  </div>
+  <div class="card-body">
+    <p class="small" style="margin:0">{{ error.message }}</p>
+    <div class="row" style="margin-top:16px">
+      <a class="btn primary" href="/">{{ icon('overview', 15) }} بازگشت به نمای کلی</a>
+      <a class="btn ghost" href="/workflows">گردش‌کارها</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

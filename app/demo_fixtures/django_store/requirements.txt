@@ -1,0 +1,4 @@
+# Python dependencies for the demo storefront
+Django==5.0.9
+gunicorn==22.0.0
+psycopg[binary]==3.2.3

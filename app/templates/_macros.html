@@ -1,0 +1,49 @@
+{% macro status_badge(status) -%}
+{%- set styles = {
+  'queued': ('gray', 'در صف'),
+  'running': ('teal', 'در حال اجرا'),
+  'waiting_for_approval': ('amber', 'منتظر تأیید'),
+  'testing': ('teal', 'در حال تست'),
+  'deploying': ('violet', 'در حال انتشار'),
+  'verifying': ('teal', 'بررسی سلامت'),
+  'completed': ('green', 'تکمیل‌شده'),
+  'failed': ('red', 'ناموفق'),
+  'cancelled': ('gray', 'لغو‌شده'),
+  'needs_human': ('amber', 'نیازمند انسان')
+} -%}
+{%- set s = styles.get(status, ('gray', status or '—')) -%}
+<span class="badge {{ s[0] }}">{{ s[1] }}</span>
+{%- endmacro %}
+
+{% macro approval_status(status) -%}
+{%- set styles = {
+  'pending': ('amber', 'در انتظار'),
+  'approved': ('green', 'تأییدشده'),
+  'rejected': ('red', 'ردشده'),
+  'expired': ('gray', 'منقضی'),
+  'consumed': ('teal', 'مصرف‌شده')
+} -%}
+{%- set s = styles.get(status, ('gray', status or '—')) -%}
+<span class="badge {{ s[0] }}">{{ s[1] }}</span>
+{%- endmacro %}
+
+{% macro risk_badge(level) -%}
+{%- set styles = {'low': ('green', 'کم'), 'medium': ('amber', 'متوسط'), 'high': ('red', 'پرریسک')} -%}
+{%- set s = styles.get(level, ('gray', level or '—')) -%}
+<span class="badge {{ s[0] }}">ریسک: {{ s[1] }}</span>
+{%- endmacro %}
+
+{% macro confidence_badge(confidence) -%}
+{%- set styles = {'low': ('red', 'کم'), 'medium': ('amber', 'متوسط'), 'high': ('green', 'زیاد')} -%}
+{%- set s = styles.get(confidence, ('gray', confidence or '—')) -%}
+<span class="badge {{ s[0] }}">اطمینان: {{ s[1] }}</span>
+{%- endmacro %}
+
+{% macro time_tag(value) -%}
+{%- if value -%}<time data-utc="{{ value }}" class="small muted">{{ value }}</time>{%- else -%}<span class="muted">—</span>{%- endif -%}
+{%- endmacro %}
+
+{% from "_icons.html" import icon %}
+{% macro empty_state(text, hint='') -%}
+<div class="empty"><div class="big">{{ icon('inbox', 20) }}</div><div>{{ text }}</div>{% if hint %}<div class="tiny muted" style="margin-top:6px">{{ hint }}</div>{% endif %}</div>
+{%- endmacro %}
