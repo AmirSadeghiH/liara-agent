@@ -17,6 +17,7 @@ from app.agent.llm import LLMAdvisor
 from app.agent.nodes import WorkflowDeps
 from app.core.config import Settings
 from app.core.utils import iso
+from app.db.conversation_store import ConversationStore
 from app.db.database import Database
 from app.db.repository import Repository
 from app.liara.adapter import LiaraAdapter, LiveLiaraAdapter
@@ -24,6 +25,7 @@ from app.liara.mock_adapter import MockLiaraAdapter
 from app.services.approval_service import ApprovalService
 from app.services.audit_service import AuditService
 from app.services.coding_agent_service import CodingAgentService
+from app.services.conversation_service import ConversationService
 from app.services.demo_service import DemoService
 from app.services.deployment_service import DeploymentService
 from app.services.diagnosis_service import DiagnosisService
@@ -62,6 +64,17 @@ class AppContainer:
             settings, self.repo, self.audit, self.approvals, self.adapter
         )
         self.demo = DemoService(settings, self.adapter, self.runner)
+        self.conversations = ConversationService(
+            store=ConversationStore(self.db),
+            repo=self.repo,
+            adapter=self.adapter,
+            diagnosis=self.diagnosis,
+            approvals=self.approvals,
+            runner=self.runner,
+            coding=self.coding,
+            audit=self.audit,
+            settings=settings,
+        )
 
         self.graph: Any = None
         self.checkpointer: Any = None

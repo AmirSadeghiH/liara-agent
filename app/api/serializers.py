@@ -146,6 +146,7 @@ def agent_run_dict(row: CodingAgentRun) -> dict[str, Any]:
         "workflow_id": row.workflow_id,
         "provider": row.provider,
         "status": row.status,
+        "summary": row.prompt_summary,
         "simulated": row.simulated,
         "workspace": row.workspace,
         "branch": row.branch,

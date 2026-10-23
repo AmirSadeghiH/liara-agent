@@ -284,11 +284,26 @@ class WorkflowNodes:
     async def prepare_repair_plan(self, state: WorkflowState) -> dict[str, Any]:
         async with self._step(state, "prepare_repair_plan") as ctx:
             diagnosis = state.get("diagnosis") or {}
+            attempt = int(state.get("attempt") or 0)
             plan = build_repair_plan(diagnosis, state.get("project", ""))
-            plan["attempt"] = int(state.get("attempt") or 0)
+            plan["attempt"] = attempt
             plan["max_attempts"] = self.settings.coding_agent_max_repair_attempts
             plan["branch"] = f"ai-fix/{state['workflow_id']}"
             plan["simulated"] = bool(self.settings.demo_mode)
+            # A retry must not lose what the previous attempt learned.  The
+            # workspace is preserved and this payload is handed to the agent.
+            if attempt > 0:
+                tests = state.get("tests") or {}
+                repair = state.get("repair") or {}
+                plan["workspace_reused"] = True
+                plan["previous_failure"] = {
+                    "attempt": attempt,
+                    "test_status": tests.get("status"),
+                    "test_runner": tests.get("runner"),
+                    "test_output_tail": str(tests.get("output_tail") or "")[-6000:],
+                    "files_changed": list(repair.get("files_changed") or []),
+                    "diff": str(repair.get("diff") or "")[:12000],
+                }
             await self.repo.update_workflow(state["workflow_id"], repair_plan=plan)
             ctx.summary = f"برنامه اصلاح برای {plan.get('cause_key')} آماده شد."
             ctx.set(cause_key=plan.get("cause_key"))
@@ -303,6 +318,36 @@ class WorkflowNodes:
         attempt = int(state.get("attempt") or 0)
         plan = state.get("repair_plan") or {}
         diagnosis = state.get("diagnosis") or {}
+
+        # A bounded retry inside the *same* approved repair plan does not need a
+        # second human approval.  The original server-side approval must still be
+        # approved, belong to this workflow and this stage; production deployment
+        # keeps its own separate approval further down the graph.
+        if attempt > 0 and state.get("approval_decision") == "approved" and state.get("approval_id"):
+            original = await self.repo.get_approval(str(state["approval_id"]))
+            if (
+                original is not None
+                and original.workflow_id == workflow_id
+                and original.stage == "repair"
+                and original.status == "approved"
+            ):
+                async with self._step(state, "request_human_approval", status="running") as ctx:
+                    ctx.summary = (
+                        "تلاش بعدی داخل همان برنامه تأییدشده اجرا می‌شود؛ "
+                        "تأیید تکراری لازم نیست."
+                    )
+                    ctx.set(approval_reused=True, approval_id=original.id, attempt=attempt)
+                await self.audit.record(
+                    "repair.retry_authorized", target=workflow_id, outcome="approved",
+                    detail={"approval_id": original.id, "attempt": attempt,
+                            "max_attempts": self.settings.coding_agent_max_repair_attempts},
+                    trace_id=workflow_id,
+                )
+                return self._step_result(
+                    ctx, approval_decision="approved", approval_id=original.id,
+                    pending_approval_id=None, status="running",
+                )
+
         params = {
             "stage": "repair",
             "project": state.get("project"),
@@ -388,7 +433,8 @@ class WorkflowNodes:
     async def prepare_workspace(self, state: WorkflowState) -> dict[str, Any]:
         async with self._step(state, "prepare_workspace") as ctx:
             prepared = await self.coding.prepare_workspace(
-                workflow_id=state["workflow_id"], project=state["project"]
+                workflow_id=state["workflow_id"], project=state["project"],
+                attempt=int(state.get("attempt") or 0),
             )
             if prepared.get("needs_human"):
                 ctx.summary = prepared.get("summary", "Workspace آماده نشد.")
@@ -396,8 +442,18 @@ class WorkflowNodes:
                     ctx, repair=prepared, outcome_status="needs_human",
                     stop_reason=prepared.get("summary"), status="running",
                 )
-            ctx.summary = f"Workspace آماده شد؛ شاخه {prepared.get('branch')}."
-            ctx.set(branch=prepared.get("branch"))
+            ctx.summary = (
+                f"Workspace قبلی حفظ شد؛ شاخه {prepared.get('branch')}."
+                if prepared.get("workspace_reused") else
+                f"Workspace آماده شد؛ شاخه {prepared.get('branch')}."
+            )
+            ctx.set(branch=prepared.get("branch"),
+                    workspace_reused=bool(prepared.get("workspace_reused")))
+            await self.repo.update_workflow(
+                state["workflow_id"],
+                workspace=prepared.get("workspace"),
+                branch=prepared.get("branch"),
+            )
         return self._step_result(
             ctx,
             workspace=prepared.get("workspace"),
@@ -422,6 +478,7 @@ class WorkflowNodes:
                 repair_plan=state.get("repair_plan") or {},
                 evidence_summary=evidence.get("summary") or {},
                 attempt=int(state.get("attempt") or 0),
+                previous_failure=(state.get("repair_plan") or {}).get("previous_failure"),
             )
             ctx.summary = result.get("summary") or "ایجنت اجرا شد."
             ctx.set(
@@ -453,13 +510,34 @@ class WorkflowNodes:
             )
             await self.repo.update_workflow(state["workflow_id"], test_results=tests)
             passed = tests.get("status") == "passed"
-            ctx.summary = (
-                f"تست‌ها با {tests.get('runner')} اجرا شد: {tests.get('status')}"
-            )
+            next_attempt = int(state.get("attempt") or 0) + 1
+            max_attempts = int(state.get("max_attempts") or 3)
+            if passed:
+                ctx.summary = (
+                    f"تست‌ها با {tests.get('runner')} اجرا شد: {tests.get('status')}"
+                )
+            elif next_attempt >= max_attempts:
+                ctx.summary = (
+                    f"تست‌ها پس از {next_attempt} تلاش شکست خوردند؛ "
+                    "برای ادامه به کمک انسان نیاز است."
+                )
+            else:
+                ctx.summary = (
+                    f"تست‌ها با {tests.get('runner')} اجرا شد: {tests.get('status')}؛ "
+                    "تلاش بعدی با Workspace حفظ‌شده انجام می‌شود."
+                )
             ctx.set(test_status=tests.get("status"))
         updates: dict[str, Any] = {"tests": tests, "status": "running"}
         if not passed:
-            updates["attempt"] = int(state.get("attempt") or 0) + 1
+            updates["attempt"] = next_attempt
+            await self.repo.update_workflow(state["workflow_id"], attempt=next_attempt)
+            if next_attempt >= max_attempts:
+                # Stop the loop explicitly and ask a human for help instead of
+                # reporting a successful workflow after a failing test run.
+                updates.update({
+                    "outcome_status": "needs_human",
+                    "stop_reason": "repair_attempts_exhausted",
+                })
         return self._step_result(ctx, **updates)
 
     @_guarded

@@ -45,26 +45,36 @@
 | اتصال واقعی به Liara (Live) | ✅ کد کامل؛ نیازمند توکن واقعی (تست Live جدا) |
 | Adapterهای Claude Code / Codex / Mock / Manual Handoff | ✅ کد کامل؛ CLI در این محیط نصب نبود |
 | بسته‌بندی امن سورس (بدون `.env`، `.git`، `node_modules`، symlink escape) | ✅ تست‌شده |
+| رابط مکالمه‌ای فارسی (React + Vite) با Generative UI مبتنی بر Registry | ✅ تست‌شده |
 | رابط فارسی RTL، واکنش‌گرا، بدون CDN و فونت خارجی | ✅ |
 | Audit Log (SQLite + JSONL) با ماسک راز | ✅ |
 
-### ۲.۱ رابط کاربری
+### ۲.۱ رابط مکالمه‌ای (صفحه اصلی)
 
-- **تم رنگی لیارا**: پالت از هویت برند لیارا گرفته شده است —
-  آبی روشن `#28C1F5` (Picton Blue)، آبی-سبز تیره `#19617E` (Blumine) و خاکستری سرد `#B4BCD0`
-  (Heather)، روی سطوح روشن و سایدبار سرمه‌ای. این توکن‌ها در `app/static/styles.css` تعریف شده‌اند.
-- **صفحه‌ها**: نمای کلی، پروژه‌ها، عیب‌یابی، گردش‌کارها، جزئیات گردش‌کار، تأییدها، تنظیمات و اتصال MCP
-  (همه RTL، فارسی، واکنش‌گرا).
-- **بدون وابستگی خارجی**: CSS/JS دست‌نویس، آیکون‌های SVG درون‌خطی، بدون CDN و بدون درخواست شبکه‌ای؛
-  فونت **Vazirmatn** (SIL OFL 1.1) به‌صورت self-hosted در `app/static/fonts/` قرار دارد،
-  بنابراین روی شبکه بسته هم تایپوگرافی فارسی همان‌طور دیده می‌شود.
-- **دسترس‌پذیری**: فوکوس قابل‌مشاهده، `aria-current` در ناوبری، skip-link، کنتراست متن‌ها،
-  احترام به `prefers-reduced-motion` و ناوبری کشویی موبایل (باز/بسته با Esc).
-- **شفافیت دمو**: نشان `DEMO / SIMULATED` در سایدبار و هدر همه صفحه‌ها و روی کارت‌های نتیجه تکرار می‌شود.
+- **همه‌چیز در یک گفت‌وگو**: صفحه `/` یک چت کامل است — پروژه، تشخیص، منابع، لاگ، برنامه اصلاح،
+  Diff، تأییدها، انتشار و گزارش نهایی همه به‌صورت پیام و کارت در همان Thread نمایش داده می‌شوند.
+- **Generative UI محدود به Registry**: بک‌اند فهرست `ui_blocks` را با Schema معتبر برمی‌گرداند؛
+  فرانت‌اند فقط نام‌های ثبت‌شده در `web/src/components/blocks/registry.tsx` را رندر می‌کند.
+  نام ناشناخته، props نامعتبر یا HTML تولیدشده توسط مدل نه اجرا می‌شود و نه صفحه را از کار می‌اندازد.
+- **کارت‌های تعاملی**: Project Picker به Context گفت‌وگو وصل است، Approval Card فقط با درخواست
+  معتبر سرور عملیات را اجرا می‌کند، Workflow Timeline از رویدادهای ذخیره‌شده ساخته می‌شود و
+  Metrics/Log/Diff/Health از داده واقعی یا Fixture مشخص می‌آیند.
+- **بازیابی وضعیت**: پیام‌ها، UI Blocks، پروژه فعال و شناسه گردش‌کار در SQLite ذخیره می‌شوند؛
+  پس از Refresh یا Restart، گفت‌وگو و کارت تأیید در انتظار دوباره از سرور خوانده می‌شوند.
+- **بدون وابستگی خارجی**: Tailwind v4 و فونت **Vazirmatn** (SIL OFL) به‌صورت self-hosted در
+  `app/static/chat/fonts/`؛ هیچ CDN، فونت یا اسکریپت خارجی در زمان اجرا لازم نیست.
+- **تم**: زبان طراحی Graphite (طبق قواعد VibeFarsi) با رنگ تأکیدی برند لیارا؛ توکن‌ها در
+  `web/src/index.css` تعریف شده‌اند. اعداد کارت‌ها با ارقام فارسی و شناسه‌های فنی با `dir="ltr"`
+  نمایش داده می‌شوند.
+- **دسترس‌پذیری**: skip-link، focus visible، `aria-live` برای پیام‌ها و وضعیت، برچسب‌های ARIA برای
+  ورودی‌ها و دکمه‌ها و احترام به `prefers-reduced-motion`.
+- **شفافیت دمو**: نشان `DEMO / SIMULATED` در هدر، Composer و روی کارت‌های داده‌محور تکرار می‌شود.
+- **پنل قدیمی**: مسیر `/dashboard` برای مقایسه و سازگاری باقی مانده است، اما مسیر اصلی محصول چت است.
 
 ## ۳. پیش‌نیازها
 
 - **Python 3.11+** (توسعه و تست روی 3.11 انجام شده؛ پروژه برای **3.12** هدف‌گذاری شده و روی آن هم اجرا می‌شود)
+- **Node.js 20+ و npm** — فقط برای توسعه یا Build مجدد رابط React لازم است؛ نسخه Build‌شده در مخزن سرو می‌شود
 - **uv** (اختیاری، پیشنهادی) — اگر نصب نباشد اسکریپت به `pip` برمی‌گردد
 - **git** (برای ساخت شاخه اصلاح؛ در حالت دمو اختیاری است)
 - Docker لازم **نیست**. توکن لیارا و LLM برای دمو لازم **نیست**.
@@ -96,9 +106,24 @@ python -m pip install -e ".[dev]"
 
 python scripts/setup_env.py            # .env را از .env.example می‌سازد (بدون بازنویسی فایل موجود)
 python scripts/validate_config.py      # اعتبارسنجی تنظیمات، بدون افشای راز
-python -m pytest -q                    # ۱۳۷ تست آفلاین
+python -m pytest -q                    # تست‌های آفلاین بک‌اند
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
+
+### توسعه یا Build رابط مکالمه‌ای
+
+خروجی Build در `app/static/chat/` قرار می‌گیرد و FastAPI همان را روی `/` سرو می‌کند.
+برای کار روی UI، در یک ترمینال FastAPI را روی پورت 8000 اجرا کنید و در ترمینال دیگر:
+
+```bash
+cd web
+npm install
+npm run dev        # http://127.0.0.1:5173 با proxy به /api روی 8000
+npm test           # Vitest (Registry، تأییدیه، حالت‌های خطا و DEMO/LIVE)
+npm run build      # ساخت مجدد app/static/chat/index.html و assets
+```
+
+پس از هر تغییر UI، `npm run build` را اجرا کنید تا نسخه‌ای که FastAPI سرو می‌کند به‌روز شود.
 
 ### لینوکس / مک‌اواس
 
@@ -239,17 +264,18 @@ escape، بسته‌بندی بدون `.env`/`.git`)، MCP (ثبت ابزار، 
 app/
 ├── main.py               # FastAPI app + middleware + error mapping
 ├── core/                 # config، logging با ماسک راز، security، errors، utils
-├── api/routes/           # dashboard(UI)، projects، diagnosis، workflows، approvals، settings، demo، health
+├── api/routes/           # conversations(چت)، dashboard(قدیمی)، projects، diagnosis، workflows، approvals، settings، demo، health
 ├── liara/                # client، schemas، adapter، mock_adapter، source_packager، errors
 ├── agent/                # graph، nodes، state، prompts، checkpointer، llm(اختیاری)
 ├── mcp/                  # server(stdio) و tool_registry
 ├── coding_agents/        # base، claude_code، codex، mock_agent، manual
-├── services/             # audit، approval، diagnosis، coding_agent، deployment، verification، workflow، demo، container
-├── db/                   # models، repository، database
-├── templates/ static/    # UI فارسی RTL
+├── services/             # conversation، ui_blocks، audit، approval، diagnosis، coding_agent، deployment، verification، workflow، demo، container
+├── db/                   # models، repository، conversation_store، database
+├── templates/ static/    # پنل قدیمی + خروجی Build چت در static/chat
 └── demo_fixtures/        # مخزن نمونه برای دمو (خطای واقعی وابستگی ناقص)
+web/                      # React + Vite + TypeScript + Tailwind v4 (منبع رابط چت)
 scripts/                  # run.ps1، run.sh، setup_env.py، validate_config.py
-tests/                    # ۱۳۷ تست آفلاین + تست‌های Live جدا
+tests/                    # تست‌های آفلاین بک‌اند (Unit/API/E2E/MCP)
 docs/                     # architecture، liara-api، mcp، security، demo-script، limitations
 ```
 

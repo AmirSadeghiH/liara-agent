@@ -9,12 +9,13 @@ from urllib.parse import quote
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.api.routes import (
     approvals,
+    conversations,
     dashboard,
     demo,
     diagnosis,
@@ -152,9 +153,17 @@ def create_app(
 
     @app.exception_handler(RequestValidationError)
     async def validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+        # Pydantic puts the original exception instance in ``ctx`` for custom
+        # validators; it is not JSON serialisable, so ctx values are stringified.
+        errors = []
+        for err in exc.errors()[:5]:
+            clean = {key: value for key, value in err.items() if key != "ctx"}
+            if err.get("ctx"):
+                clean["ctx"] = {str(k): str(v) for k, v in err["ctx"].items()}
+            errors.append(clean)
         return JSONResponse(
             {"error": {"code": "validation_error", "message": "Invalid request payload.",
-                       "details": {"errors": exc.errors()[:5]}}},
+                       "details": {"errors": errors}}},
             status_code=422,
         )
 
@@ -177,7 +186,28 @@ def create_app(
     app.include_router(approvals.router)
     app.include_router(settings_routes.router)
     app.include_router(demo.router)
+    app.include_router(conversations.router)
     app.include_router(dashboard.router)
+
+    # ------------------------------------------------------------------
+    # conversational frontend (React build served by FastAPI)
+    # ------------------------------------------------------------------
+    chat_dir = static_dir / "chat"
+
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    async def chat_shell() -> Response:
+        index = chat_dir / "index.html"
+        if index.is_file():
+            return HTMLResponse(index.read_text(encoding="utf-8"))
+        return HTMLResponse(
+            "<!doctype html><html lang='fa' dir='rtl'><meta charset='utf-8'>"
+            "<title>LiaraPilot</title>"
+            "<body style='font-family:sans-serif;padding:2rem;line-height:2'>"
+            "<h1>LiaraPilot</h1><p>فرانت‌اند ساخته نشده است. در پوشه web دستورهای "
+            "<code>npm install</code> و <code>npm run build</code> را اجرا کنید.</p>"
+            "<p><a href='/dashboard'>پنل قدیمی</a></p></body></html>",
+            status_code=200,
+        )
 
     @app.get("/favicon.ico", include_in_schema=False)
     async def favicon() -> Response:

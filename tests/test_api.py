@@ -97,9 +97,26 @@ def test_ui_pages_render_in_persian_rtl(client, page):
 
 
 def test_dashboard_contains_demo_button(client):
-    html = client.get("/").text
+    html = client.get("/dashboard").text
     assert "اجرای سناریوی دمو" in html
     assert "DEMO / SIMULATED" in html
+
+
+def test_root_serves_conversational_shell(client):
+    response = client.get("/")
+    assert response.status_code == 200
+    html = response.text
+    assert 'dir="rtl"' in html
+    assert 'lang="fa"' in html
+    assert "LiaraPilot" in html
+    assert "/static/chat/assets/" in html
+
+    import re
+
+    assets = re.findall(r'(?:src|href)="(/static/chat/assets/[^"]+)"', html)
+    assert assets, "the built SPA must reference its compiled assets"
+    for asset in assets:
+        assert client.get(asset).status_code == 200, asset
 
 
 def test_workflow_page_renders_with_approval_controls(client):

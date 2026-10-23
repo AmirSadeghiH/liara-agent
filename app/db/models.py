@@ -155,3 +155,34 @@ class AuditEvent(Base):
     outcome: Mapped[str] = mapped_column(String(32), nullable=False, default="ok")
     trace_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     detail: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+
+
+class Conversation(Base, TimestampMixin):
+    """A persistent chat thread (the primary product surface)."""
+
+    __tablename__ = "conversations"
+
+    id: Mapped[str] = mapped_column(String(48), primary_key=True)
+    title: Mapped[str] = mapped_column(String(160), nullable=False, default="گفت‌وگوی جدید")
+    project: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    last_intent: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    workflow_ids: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    demo_mode: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    simulated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_by: Mapped[str] = mapped_column(String(64), nullable=False, default="ui")
+
+
+class ConversationMessage(Base):
+    """One chat message.  ``blocks`` holds validated Generative-UI blocks."""
+
+    __tablename__ = "conversation_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    conversation_id: Mapped[str] = mapped_column(String(48), nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(16), nullable=False, default="assistant")
+    text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    blocks: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
+    workflow_id: Mapped[str | None] = mapped_column(String(48), nullable=True, index=True)
+    client_message_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    data: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[str] = mapped_column(String(40), nullable=False)

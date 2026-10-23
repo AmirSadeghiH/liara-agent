@@ -139,11 +139,19 @@ class WorkflowRunner:
         row = await self.repo.get_workflow(workflow_id)
         if interrupts:
             pending = await self.approvals.get_pending_for_workflow(workflow_id)
+            # ``current_step`` is the graph node name, not the approval stage:
+            # the chat timeline renders it directly and would show a bare
+            # "repair" instead of the waiting step.
+            waiting_step = (
+                "request_deployment_approval"
+                if pending is not None and pending.stage == "deploy"
+                else "request_human_approval"
+            )
             await self.repo.update_workflow(
                 workflow_id,
                 status="waiting_for_approval",
                 pending_approval_id=pending.id if pending else None,
-                current_step=(pending.stage if pending else "request_human_approval"),
+                current_step=waiting_step,
             )
             await self.audit.record(
                 "workflow.waiting_for_approval", target=workflow_id, outcome="waiting",

@@ -20,6 +20,7 @@ import importlib.util
 import logging
 import os
 import shutil
+import stat
 import sys
 import time
 from dataclasses import dataclass, field
@@ -60,21 +61,64 @@ class WorkspaceInfo:
     path: Path
     branch: str
     git: dict[str, Any] = field(default_factory=dict)
+    reused: bool = False
 
     def as_dict(self) -> dict[str, Any]:
-        return {"path": str(self.path), "branch": self.branch, "git": self.git}
+        return {"path": str(self.path), "branch": self.branch, "git": self.git,
+                "reused": self.reused}
 
 
-def _file_digest(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(65536), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+def _remove_tree(path: Path) -> None:
+    """Remove a workspace, including read-only files created by Git.
+
+    Git object files are marked read-only on Windows, which makes a plain
+    ``shutil.rmtree`` fail with ``WinError 5`` and leaves a half-deleted
+    workspace behind.  The same helper is used for a fresh attempt and cleanup.
+    """
+    def _retry(func, target, exc):  # noqa: ANN001 - shutil callback signature
+        try:
+            os.chmod(target, stat.S_IWRITE)
+            func(target)
+        except OSError:
+            if isinstance(exc, tuple):
+                raise exc[1]
+            raise
+
+    if not path.exists():
+        return
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=_retry)
+    else:  # pragma: no cover - Python < 3.12
+        shutil.rmtree(path, onerror=_retry)
 
 
-def snapshot_workspace(root: Path) -> dict[str, str]:
-    result: dict[str, str] = {}
+MAX_SNAPSHOT_BYTES = 512_000
+
+
+@dataclass(frozen=True)
+class FileSnapshot:
+    """Content captured before the agent runs.
+
+    A digest is kept for every file (binary and oversized files included) so
+    change detection stays correct; text content is kept only when it can be
+    diffed.  Reading the file again *after* the agent ran would compare the new
+    content with itself and silently produce an empty diff.
+    """
+
+    digest: str
+    content: str | None
+
+
+def _read_snapshot(path: Path) -> FileSnapshot:
+    raw = path.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    if b"\x00" in raw[:8000] or len(raw) > MAX_SNAPSHOT_BYTES:
+        return FileSnapshot(digest=digest, content=None)
+    return FileSnapshot(digest=digest, content=raw.decode("utf-8", errors="replace"))
+
+
+def snapshot_workspace(root: Path) -> dict[str, FileSnapshot]:
+    result: dict[str, FileSnapshot] = {}
     for path in sorted(root.rglob("*")):
         if not path.is_file() or path.is_symlink():
             continue
@@ -82,15 +126,18 @@ def snapshot_workspace(root: Path) -> dict[str, str]:
         if rel.startswith(".git/") or "/.git/" in rel or rel == ".git":
             continue
         try:
-            result[rel] = _file_digest(path)
+            result[rel] = _read_snapshot(path)
         except OSError:  # pragma: no cover
             continue
     return result
 
 
-def compute_diff(before: dict[str, str], after: dict[str, str], root: Path) -> dict[str, Any]:
+def compute_diff(
+    before: dict[str, FileSnapshot], after: dict[str, FileSnapshot], root: Path
+) -> dict[str, Any]:
     changed = sorted(
-        path for path in set(before) | set(after) if before.get(path) != after.get(path)
+        path for path in set(before) | set(after)
+        if (before.get(path) and before[path].digest) != (after.get(path) and after[path].digest)
     )
     added = [p for p in changed if p not in before]
     deleted = [p for p in changed if p not in after]
@@ -98,22 +145,13 @@ def compute_diff(before: dict[str, str], after: dict[str, str], root: Path) -> d
     diff_lines: list[str] = []
     truncated = False
     for rel in changed[:MAX_DIFF_FILES]:
-        old_path = root / rel
-        new_path = root / rel
-        old_text = ""
-        new_text = ""
-        try:
-            if rel in before and old_path.exists():
-                raw = old_path.read_bytes()
-                old_text = raw.decode("utf-8", errors="replace") if b"\x00" not in raw[:8000] else "<binary>"
-            if rel in after and new_path.exists():
-                raw = new_path.read_bytes()
-                new_text = raw.decode("utf-8", errors="replace") if b"\x00" not in raw[:8000] else "<binary>"
-        except OSError:
+        old = before.get(rel)
+        new = after.get(rel)
+        if (old is not None and old.content is None) or (new is not None and new.content is None):
+            diff_lines.append(f"--- {rel}\n+++ {rel}\n(binary or oversized file changed)\n")
             continue
-        if old_text == "<binary>" or new_text == "<binary>":
-            diff_lines.append(f"--- {rel}\n+++ {rel}\n(binary file changed)\n")
-            continue
+        old_text = old.content if old is not None else ""
+        new_text = new.content if new is not None else ""
         diff_lines.extend(
             difflib.unified_diff(
                 old_text.splitlines(), new_text.splitlines(),
@@ -174,33 +212,41 @@ class WorkspaceManager:
         path = assert_within(root, root / workflow_id)
         return path
 
-    async def create(self, *, workflow_id: str, project: str) -> WorkspaceInfo:
+    async def create(
+        self, *, workflow_id: str, project: str, preserve: bool = False
+    ) -> WorkspaceInfo:
         destination = self._workspace_path(workflow_id)
-        if destination.exists():
-            shutil.rmtree(destination)
-        destination.mkdir(parents=True)
-
-        if self.settings.demo_mode:
-            source = self.settings.demo_fixture_root / "django_store"
-            if not source.is_dir():
-                raise NotFoundError("Demo fixture repository is missing from the installation.")
-            shutil.copytree(source, destination, dirs_exist_ok=True)
-            origin = "demo_fixture"
+        reused = bool(preserve and destination.is_dir())
+        if reused:
+            # Retry inside the same approved repair plan: keep the previous
+            # attempt's changes so the agent can fix the failing test instead of
+            # silently starting over from the fixture.
+            origin = "preserved_workspace"
         else:
-            repo_path = (self.settings.coding_agent_repo_path or "").strip()
-            if not repo_path:
-                raise PolicyViolation(
-                    "CODING_AGENT_REPO_PATH is not configured. Live repair needs a local clone "
-                    "of the application repository; no repository is guessed.",
-                    details={"reason": "repo_not_configured"},
-                )
-            repo = await asyncio.to_thread(lambda: Path(repo_path).expanduser().resolve())
-            if not repo.is_dir():
-                raise PolicyViolation(
-                    "CODING_AGENT_REPO_PATH does not exist.", details={"path": str(repo)}
-                )
-            shutil.copytree(repo, destination, dirs_exist_ok=True)
-            origin = "local_repo"
+            _remove_tree(destination)
+            destination.mkdir(parents=True)
+
+            if self.settings.demo_mode:
+                source = self.settings.demo_fixture_root / "django_store"
+                if not source.is_dir():
+                    raise NotFoundError("Demo fixture repository is missing from the installation.")
+                shutil.copytree(source, destination, dirs_exist_ok=True)
+                origin = "demo_fixture"
+            else:
+                repo_path = (self.settings.coding_agent_repo_path or "").strip()
+                if not repo_path:
+                    raise PolicyViolation(
+                        "CODING_AGENT_REPO_PATH is not configured. Live repair needs a local clone "
+                        "of the application repository; no repository is guessed.",
+                        details={"reason": "repo_not_configured"},
+                    )
+                repo = await asyncio.to_thread(lambda: Path(repo_path).expanduser().resolve())
+                if not repo.is_dir():
+                    raise PolicyViolation(
+                        "CODING_AGENT_REPO_PATH does not exist.", details={"path": str(repo)}
+                    )
+                shutil.copytree(repo, destination, dirs_exist_ok=True)
+                origin = "local_repo"
 
         # Never let a .env file enter the workspace.
         for env_file in list(destination.glob(".env*")):
@@ -210,13 +256,14 @@ class WorkspaceManager:
         branch = f"ai-fix/{workflow_id}"
         git = await self._prepare_git(destination, branch)
         await self.audit.record(
-            "workspace.created",
+            "workspace.created" if not reused else "workspace.reused",
             target=workflow_id,
             detail={"project": project, "branch": branch, "origin": origin,
-                    "git": git.get("initialised"), "simulated": self.settings.demo_mode},
+                    "git": git.get("initialised"), "simulated": self.settings.demo_mode,
+                    "reused": reused},
             trace_id=workflow_id,
         )
-        return WorkspaceInfo(path=destination, branch=branch, git=git)
+        return WorkspaceInfo(path=destination, branch=branch, git=git, reused=reused)
 
     async def _prepare_git(self, workspace: Path, branch: str) -> dict[str, Any]:
         """Initialise an isolated repository inside the workspace.
@@ -277,8 +324,10 @@ class WorkspaceManager:
 
     def cleanup(self, workflow_id: str) -> None:
         path = self._workspace_path(workflow_id)
-        if path.exists():
-            shutil.rmtree(path, ignore_errors=True)
+        try:
+            _remove_tree(path)
+        except OSError:
+            logger.warning("workspace cleanup failed", extra={"event_data": {"path": str(path)}})
 
 
 class TestRunner:
@@ -391,7 +440,9 @@ class CodingAgentService:
     # ------------------------------------------------------------------
     # step 1: isolated workspace + branch
     # ------------------------------------------------------------------
-    async def prepare_workspace(self, *, workflow_id: str, project: str) -> dict[str, Any]:
+    async def prepare_workspace(
+        self, *, workflow_id: str, project: str, attempt: int = 0
+    ) -> dict[str, Any]:
         run_id = new_id("car")
         await self.repo.create_agent_run({
             "id": run_id,
@@ -402,7 +453,9 @@ class CodingAgentService:
         })
         started = time.perf_counter()
         try:
-            workspace = await self.workspaces.create(workflow_id=workflow_id, project=project)
+            workspace = await self.workspaces.create(
+                workflow_id=workflow_id, project=project, preserve=attempt > 0
+            )
         except (PolicyViolation, NotFoundError, ValidationError) as exc:
             message = getattr(exc, "message", str(exc))
             await self.repo.update_agent_run(
@@ -433,7 +486,12 @@ class CodingAgentService:
             "test_command": " ".join(command) if command else None,
             "test_runner": runner,
             "simulated": self.settings.demo_mode,
-            "summary": f"Workspace ایزوله ساخته شد و شاخه {workspace.branch} ایجاد شد.",
+            "workspace_reused": workspace.reused,
+            "summary": (
+                f"Workspace قبلی حفظ شد (تلاش {attempt}) و شاخه {workspace.branch} دوباره بررسی شد."
+                if workspace.reused else
+                f"Workspace ایزوله ساخته شد و شاخه {workspace.branch} ایجاد شد."
+            ),
         }
 
     # ------------------------------------------------------------------
@@ -451,6 +509,7 @@ class CodingAgentService:
         repair_plan: dict[str, Any],
         evidence_summary: dict[str, Any],
         attempt: int = 0,
+        previous_failure: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         agent = self.select_agent()
         root = Path(workspace)
@@ -463,6 +522,8 @@ class CodingAgentService:
             branch=branch,
             test_command=(" ".join(command) if command else runner),
             max_attempts=self.settings.coding_agent_max_repair_attempts,
+            attempt=attempt,
+            previous_failure=previous_failure,
         )
         before = snapshot_workspace(root)
         started = time.perf_counter()
@@ -516,7 +577,9 @@ class CodingAgentService:
             workspace=workspace,
             branch=branch,
             simulated=agent.simulated,
-            prompt_summary=(diagnosis.get("probable_cause") or "")[:500],
+            # The legacy column name is kept, but it stores the short activity
+            # summary now; the diagnosis already has its own card.
+            prompt_summary=(summary or diagnosis.get("probable_cause") or "")[:500],
         )
         await self.audit.record(
             "coding_agent.completed",
@@ -588,8 +651,11 @@ class CodingAgentService:
         repair_plan: dict[str, Any],
         evidence_summary: dict[str, Any],
         attempt: int = 0,
+        previous_failure: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        prepared = await self.prepare_workspace(workflow_id=workflow_id, project=project)
+        prepared = await self.prepare_workspace(
+            workflow_id=workflow_id, project=project, attempt=attempt
+        )
         if prepared.get("needs_human"):
             return {**prepared, "tests": None, "diff": "", "files_changed": []}
         executed = await self.execute_agent(
@@ -597,6 +663,7 @@ class CodingAgentService:
             workspace=prepared["workspace"], branch=prepared["branch"],
             diagnosis=diagnosis, repair_plan=repair_plan,
             evidence_summary=evidence_summary, attempt=attempt,
+            previous_failure=previous_failure,
         )
         tests = None
         review = {"ok": True, "violations": [], "warnings": []}

@@ -76,3 +76,31 @@ class WorkflowAccepted(BaseModel):
     simulated: bool
     demo_mode: bool
     created_at: str
+
+
+class ConversationCreateRequest(BaseModel):
+    title: str | None = Field(default=None, max_length=160)
+
+
+class ConversationMessageRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+    client_message_id: str | None = Field(
+        default=None, max_length=64, pattern=r"^[A-Za-z0-9_.:-]+$"
+    )
+
+    @field_validator("text")
+    @classmethod
+    def _strip_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("text must not be empty")
+        return stripped
+
+
+class SelectProjectRequest(BaseModel):
+    project: str = Field(min_length=1, max_length=80)
+
+
+class ConversationDecisionRequest(BaseModel):
+    note: str | None = Field(default=None, max_length=500)
+    actor: str = Field(default="chat", max_length=64)

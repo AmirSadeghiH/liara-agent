@@ -51,7 +51,7 @@ async def _pending_approvals(request: Request, limit: int = 5) -> list[dict[str,
     return [approval_dict(r) for r in rows[:limit]]
 
 
-@router.get("/", response_class=HTMLResponse, summary="Overview dashboard")
+@router.get("/dashboard", response_class=HTMLResponse, summary="Overview dashboard (legacy)")
 async def dashboard(request: Request) -> Response:
     container = get_container(request)
     stats = await container.repo.dashboard_stats()
